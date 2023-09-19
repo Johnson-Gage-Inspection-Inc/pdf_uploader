@@ -26,6 +26,8 @@ This file is used to configure the PDF uploader. It contains the following varia
     - general, assetsummary, assetlabel, assetdetail, assetcertificate, ordersummary,
     - orderinvoice, orderestimate, dashboard, orderdetail, ordercertificate
 """
+# Run time.  If the script runs longer than this, it will exit. This should coincide with the settings for the corresponding task in Task Scheduler on VMHOST.
+MAX_RUNTIME = (24 * 60 - 5) * 60  # (5 minutes less than 24 hours * 60 minutes) * 60 seconds
 
 # Switches:
 LIVEAPI = True              # Set to True to use live API, False to use staging API, 

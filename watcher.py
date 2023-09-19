@@ -8,7 +8,7 @@ Dependencies:
     - watchdog: pip3 install watchdog
 
 """
-from time import sleep
+import time
 from threading import Thread
 
 # pip3 install watchdog
@@ -18,7 +18,7 @@ from watchdog.observers import Observer
 import app.color_print as cp
 import app.pdf as pdf
 from app.archive import move_old_pdfs
-from config import CONFIG, DELETE_MODE
+from config import CONFIG, DELETE_MODE, MAX_RUNTIME
 from upload import process_file
 
 def process_pdfs(parameters):
@@ -34,12 +34,12 @@ class PDFFileHandler(FileSystemEventHandler):
 
     # Called when a file is created in the input directory
     def on_created(self, event):
-        sleep(3) # Wait for the file to finish writing
+        time.sleep(3) # Wait for the file to finish writing
         process_pdfs(self.parameters)
     
     # Called when a file is moved into the input directory or renamed
     def on_moved(self, event):
-        sleep(1) # Wait for the file to finish writing
+        time.sleep(1) # Wait for the file to finish writing
         process_pdfs(self.parameters)
 
 # Watch a directory for new PDF files
@@ -50,13 +50,19 @@ def watch_directory(input_dir, parameters):
     observer.schedule(event_handler, input_dir, recursive=False)
     observer.start()
 
+    # Record the start time
+    start_time = time.time()
+
     try:
         while True:
-            sleep(1)
+            # Check if the script has been running for more than 7 hours
+            if time.time() - start_time > MAX_RUNTIME:
+                break  # Exit the loop if the maximum runtime is exceeded
+
+            time.sleep(1)
     except KeyboardInterrupt:
         observer.stop()  # Stop the file system watcher if interrupted by the user
-
-    observer.join()
+        observer.join()
 
 # Convert a dictionary to a list of lists
 def dict_to_list_of_lists(data):
