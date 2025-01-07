@@ -27,7 +27,7 @@ This file is used to configure the PDF uploader. It contains the following varia
     - orderinvoice, orderestimate, dashboard, orderdetail, ordercertificate
 """
 # Run time.  If the script runs longer than this, it will exit. This should coincide with the settings for the corresponding task in Task Scheduler on VMHOST.
-MAX_RUNTIME = (24 * 60 - 5) * 60  # (5 minutes less than 24 hours * 60 minutes) * 60 seconds
+MAX_RUNTIME = None  # (24 * 60 - 5) * 60  # (5 minutes less than 24 hours * 60 minutes) * 60 seconds
 
 # Switches:
 LIVEAPI = True              # Set to True to use live API, False to use staging API, 
@@ -47,15 +47,15 @@ tesseract_cmd_path = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
 # Dictionary of directories to watch:
 CONFIG = [
     {
-        'INPUT_DIR': 'L:\\!!! Front Office Scanned Docs - HOLDING',
-        'OUTPUT_DIR': 'L:\\!!! Front Office Scanned Docs - HOLDING\\Archives',
-        'REJECT_DIR': 'L:\\!!! Front Office Scanned Docs - HOLDING\\No_Order_Found',
+        'INPUT_DIR': r'C:\\Users\\wneil\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Front Office Scanned Docs - HOLDING',
+        'OUTPUT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Front Office Scanned Docs - HOLDING\\Archives',
+        'REJECT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Front Office Scanned Docs - HOLDING\\No_Order_Found',
         'QUALER_DOCUMENT_TYPE': 'General'
     },
     {
-        'INPUT_DIR': 'L:\\!!! Scanned External Certs',
-        'OUTPUT_DIR': 'L:\\!!! Scanned External Certs\\Archives',
-        'REJECT_DIR': 'L:\\!!! Scanned External Certs\\No_Order_Found',
+        'INPUT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Scanned External Certs',
+        'OUTPUT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Scanned External Certs\\Archives',
+        'REJECT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\access\\!!! Scanned External Certs\\No_Order_Found',
         'QUALER_DOCUMENT_TYPE': 'ordercertificate'
     }
 ]

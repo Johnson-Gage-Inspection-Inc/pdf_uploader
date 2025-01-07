@@ -55,9 +55,10 @@ def watch_directory(input_dir, parameters):
 
     try:
         while True:
-            # Check if the script has been running for more than 7 hours
-            if time.time() - start_time > MAX_RUNTIME:
-                break  # Exit the loop if the maximum runtime is exceeded
+            # Check if the script has been running too long
+            if MAX_RUNTIME:
+                if time.time() - start_time > MAX_RUNTIME:
+                    break  # Exit the loop if the maximum runtime is exceeded
 
             time.sleep(1)
     except KeyboardInterrupt:

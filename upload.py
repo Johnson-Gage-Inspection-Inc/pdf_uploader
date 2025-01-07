@@ -29,8 +29,9 @@ token = api.login(QUALER_ENDPOINT, LOGIN_USER, LOGIN_PASS)
 
 total = 0
 
+
 # Rename File
-def rename_file(filepath,doc_list):
+def rename_file(filepath, doc_list):
     try:
         print("File already exists in Qualer. Renaming file...")
         file_name = os.path.basename(filepath)
@@ -52,21 +53,23 @@ def rename_file(filepath,doc_list):
         traceback.print_exc()
         return filepath
 
+
 # Upload file to Qualer endpoint, and resolve name conflicts
-def upload_with_rename(filepath,serviceOrderId,QUALER_DOCUMENT_TYPE):
+def upload_with_rename(filepath, serviceOrderId, QUALER_DOCUMENT_TYPE):
     file_name = os.path.basename(filepath) # Get file name
-    doc_list = api.get_service_order_document_list(QUALER_ENDPOINT,token,serviceOrderId) # get list of documents for the service order
-    new_filepath = rename_file(filepath, doc_list) if file_name in doc_list else filepath # if the file already exists in Qualer, rename it
+    doc_list = api.get_service_order_document_list(QUALER_ENDPOINT, token, serviceOrderId)  # get list of documents for the service order
+    new_filepath = rename_file(filepath, doc_list) if file_name in doc_list else filepath  # if the file already exists in Qualer, rename it
     uploadResult, new_filepath = api.upload(QUALER_ENDPOINT, token, new_filepath, serviceOrderId, QUALER_DOCUMENT_TYPE) if not DEBUG else print("debug mode, no uploads")
     return uploadResult, new_filepath
 
+
 # Get service order ID and upload file to Qualer endpoint
-def fetch_SO_and_upload(workorder,filepath,QUALER_DOCUMENT_TYPE):
+def fetch_SO_and_upload(workorder, filepath, QUALER_DOCUMENT_TYPE):
     try:
-        if not os.path.isfile(filepath): # See if filepath is valid
+        if not os.path.isfile(filepath):  # See if filepath is valid
             return False, filepath
         serviceOrderId = api.getServiceOrderId(QUALER_ENDPOINT, token, workorder)
-        return upload_with_rename(filepath,serviceOrderId,QUALER_DOCUMENT_TYPE) # return uploadResult, new_filepath
+        return upload_with_rename(filepath, serviceOrderId, QUALER_DOCUMENT_TYPE)  # return uploadResult, new_filepath
     except FileNotFoundError as e:
         cp.red("Error: "+filepath+" not found.")
         return False, filepath
@@ -74,7 +77,8 @@ def fetch_SO_and_upload(workorder,filepath,QUALER_DOCUMENT_TYPE):
         cp.red("Error in fetch_SO_and_upload(): "+str(e)+"\nFile: "+filepath)
         traceback.print_exc()
         return False, filepath
-    
+
+
 # Get service order ID and upload file to Qualer endpoint
 def upload_by_po(filepath, po, dict, QUALER_DOCUMENT_TYPE):
     if po not in dict:
@@ -102,7 +106,8 @@ def upload_by_po(filepath, po, dict, QUALER_DOCUMENT_TYPE):
             return [], serviceOrderIds, filepath
     return successSOs, failedSOs, filepath
 
-def reorient_pdf_for_workorders(filepath,REJECT_DIR):
+
+def reorient_pdf_for_workorders(filepath, REJECT_DIR):
     file_name = os.path.basename(filepath)
     try:
         print("Checking orientation of PDF file... " + file_name)
@@ -138,7 +143,7 @@ def reorient_pdf_for_workorders(filepath,REJECT_DIR):
 
 
 # Main function
-def process_file(filepath,qualer_parameters):
+def process_file(filepath, qualer_parameters):
     cp.blue("Processing file: " + filepath)
     # unpack parameters
     INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters
