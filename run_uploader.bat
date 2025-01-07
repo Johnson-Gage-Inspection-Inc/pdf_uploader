@@ -1,0 +1,1 @@
+python L:\\uploader\\watcher.py
