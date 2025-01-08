@@ -31,13 +31,13 @@ import app.color_print as cp
 
 try:
     pytesseract.pytesseract.tesseract_cmd = tesseract_cmd_path
-except:
-    cp.red("Tesseract not found at: "+tesseract_cmd_path+". Please install Tesseract and set the path in config.py")
-    pass
+except Exception as e:
+    cp.red(f"Tesseract not found at: {tesseract_cmd_path}. Please install Tesseract and set the path in config.py\n{e}")
 
 #########################################################################################################################
 ################################## Orientation detection / PDF rotation #################################################
 #########################################################################################################################
+
 
 def get_pdf_orientation(filepath):
     image = convert_pdf_to_image(filepath)
@@ -48,24 +48,27 @@ def get_pdf_orientation(filepath):
         return visual_orientation
     else:
         return text_orientation
-    
+
+
 def convert_pdf_to_image(filepath):
     doc = fitz.open(filepath)
     page = doc.load_page(0)  # It assumes you want to check the orientation of the first page
-    pix = page.get_pixmap(matrix=fitz.Matrix(300/72, 300/72))
+    pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))
     image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
     return image
+
 
 def convert_to_grayscale(image):
     grayscale_image = image.convert("L")
     return grayscale_image
 
+
 def get_text_orientation(image):
     try:
-        
+
         temp_file = "temp.png"
         image.save(temp_file)                           # Save the PIL image to a temporary file
-        text = pytesseract.image_to_osd(temp_file)      # Perform OCR on the temporary file       
+        text = pytesseract.image_to_osd(temp_file)      # Perform OCR on the temporary file
         os.remove(temp_file)                            # Remove the temporary file
 
         for line in text.splitlines():
@@ -91,8 +94,9 @@ def get_text_orientation(image):
 def get_visual_orientation(image):
     try:
         edges = cv2.Canny(np.array(image), 50, 150)                             # Image needs to be a NumPy array
-        lines = cv2.HoughLines(edges, 1, np.pi / 180, threshold=100)            # Get all lines in the image 
-        if lines is None: return None                                           # No lines detected
+        lines = cv2.HoughLines(edges, 1, np.pi / 180, threshold=100)            # Get all lines in the image
+        if lines is None:
+            return None                                           # No lines detected
         orientations = []                                                       # In degrees
 
         for line in lines:                                                      # line = [[rho, theta]]
@@ -109,11 +113,11 @@ def get_visual_orientation(image):
         return None
 
 
-def rotate_pdf(filepath, degrees = 180):
+def rotate_pdf(filepath, degrees=180):
     try:
         if degrees not in [0, 90, 180, 270]:                                    # Check for valid degrees
             raise ValueError('degrees must be 0, 90, 180, or 270.')             # Raise error if invalid degrees
-        
+
         with open_with_debug(filepath, 'rb') as file:                           # Open the PDF file in read-binary mode
             reader = PyPDF2.PdfReader(file)                                     # Create a PDF reader object
             writer = PyPDF2.PdfWriter()                                         # Create a PDF writer object
@@ -125,7 +129,7 @@ def rotate_pdf(filepath, degrees = 180):
                 writer.write(output_file)                                       # Write the rotated pages to the new file
         cp.green("PDF rotation complete.")
         return True
-    except:
+    except Exception:
         traceback.print_exc()
         return False
 
@@ -136,23 +140,26 @@ def rotate_pdf(filepath, degrees = 180):
 
 PO_NUM_FORMAT = r"56561-\d{6}"
 
+
 def open_with_debug(file_path, mode='r'):
     try:
         file_obj = open(file_path, mode)
         return file_obj
-    except:
+    except Exception:
         traceback.print_exc()
         sys.exit(1)
+
 
 # Iterate over PDF files in directory
 def next(dirname):
     for file in os.listdir(dirname):
-         filename = os.fsdecode(file)
-         if filename.lower().endswith(".pdf"): 
-             fpath = os.path.join(dirname, filename)
-             yield fpath
-         else:
-             continue
+        filename = os.fsdecode(file)
+        if filename.lower().endswith(".pdf"):
+            fpath = os.path.join(dirname, filename)
+            yield fpath
+        else:
+            continue
+
 
 # Takes a PDF file path as input and converts the PDF into a list of PIL images, representing each page.
 def _pdf_to_img(pdf_file):
@@ -177,7 +184,7 @@ def _pdf_to_img(pdf_file):
         traceback.print_exc()
         try:
             # Fallback option: Use pdf2image library
-            cp.yellow("PyPDFium2 failed. Using pdf2image to convert "+os.path.basename(pdf_file)+" to images.")
+            cp.yellow(f"PyPDFium2 failed. Using pdf2image to convert {os.path.basename(pdf_file)} to images.")
             images = pdf2image.convert_from_path(pdf_file)
             return images
         except Exception as fallback_error:
@@ -186,14 +193,16 @@ def _pdf_to_img(pdf_file):
             traceback.print_exc()
     return []
 
+
 # extract text from pdf using tesseract OCR
-def tesseractOcr(pdf_file): 
+def tesseractOcr(pdf_file):
     images = _pdf_to_img(pdf_file)                          # Get list of PIL images
     text = []
     for pg, img in enumerate(images):                       # Loop through images
         page_text = pytesseract.image_to_string(img)        # OCR image
         text.append(page_text)                              # Append to list
     return text                                             # Return text string of all pages
+
 
 # extract text from pdf
 def extract(filepath):
@@ -208,15 +217,16 @@ def extract(filepath):
         print(e)
     try:
         if text == []:
-            cp.yellow("PyPDF2 failed. Using OCR to extract text from "+filepath+".")
+            cp.yellow(f"PyPDF2 failed. Using OCR to extract text from {filepath}.")
             text = tesseractOcr(filepath)
         else:
-            print("Used PyPDF2 to extract text from "+filepath+".")
+            print(f"Used PyPDF2 to extract text from {filepath}.")
     except Exception as e:
         print(e)
         pass
-    
+
     return text
+
 
 # Extract relevant pages from PDF, and create child PDFs
 def create_child_pdf(filepath, pg_nums, output_path):
@@ -233,15 +243,16 @@ def create_child_pdf(filepath, pg_nums, output_path):
     finally:
         pdf_file.close()
 
+
 # extract work orders from pdf, create a set of pages for each work order, append pages with no work order to the previous work order.
 def workorders(filepath):
     order_number = ''
     fileorders = re.findall(PO_NUM_FORMAT, filepath)            # Find order numbers in file name
-    if fileorders != []:                                        # If order number found in file name        
+    if fileorders != []:                                        # If order number found in file name
         return fileorders                                       # Return orders number found in file name
 
     text = extract(filepath)                                    # Get list of text from PDF
-    scannedorders = {}                                          # Create empty dictionary for order numbers   
+    scannedorders = {}                                          # Create empty dictionary for order numbers
     for page_index, page in enumerate(text):                    # Loop through pages
         order_numbers = re.findall(PO_NUM_FORMAT, page)         # Find order numbers in page
         if order_numbers != []:                                 # If new order number found
@@ -251,11 +262,12 @@ def workorders(filepath):
                 continue                                        # Skip page
             if page.strip() == '':                              # If page is empty
                 continue                                        # Skip page
-                
+
         if order_number not in scannedorders:
             scannedorders[order_number] = set()                 # Create empty set for order number
         scannedorders[order_number].add(page_index)             # Add page number to set
     return scannedorders                                        # Return dictionary of order numbers and page numbers
+
 
 # Function to increment filename if the file already exists
 def increment_filename(old_filename):
@@ -267,7 +279,7 @@ def increment_filename(old_filename):
             break
     else:
         new_filename = old_filename.replace(".pdf", " (1).pdf")
-    time.sleep(1) # Wait 1 second before renaming
+    time.sleep(1)  # Wait 1 second before renaming
     return new_filename
 
 
@@ -276,16 +288,16 @@ def move_file(filepath, output_dir):
     file_name = os.path.basename(filepath)
     new_filepath = os.path.join(output_dir, file_name)
     attempt = 0
-    while attempt < 50: # Max number of rename attempts = 50
+    while attempt < 50:  # Max number of rename attempts = 50
         try:
             os.rename(filepath, new_filepath)
-            cp.green("Moved file to " + new_filepath + ".")
+            cp.green(f"Moved file to {new_filepath}.")
             return new_filepath
         except PermissionError as e:
             cp.red(e)
             attempt += 1
-            time.sleep(1) # Wait 1 second before retrying
-        except FileExistsError as e:
+            time.sleep(1)  # Wait 1 second before retrying
+        except FileExistsError:
             if attempt == 0:
                 print("Incrementing filename...", end="")
             else:
@@ -293,16 +305,16 @@ def move_file(filepath, output_dir):
             print()
             new_filepath = increment_filename(new_filepath)
             attempt += 1
-        except FileNotFoundError as e: # This probably means the file was already moved by another process (Perhaps another instance of this script is running?)
+        except FileNotFoundError as e:  # This probably means the file was already moved by another process (Perhaps another instance of this script is running?)
             cp.red(e)
-            return False # File not found, no need to retry
+            return False  # File not found, no need to retry
         except Exception as e:
             cp.red("Unexpected exception for " + filepath)
-            cp.red("Failed to move " + filepath + " to " + new_filepath + ".")
+            cp.red(f"Failed to move {filepath} to {new_filepath}.")
             cp.red(e)
             traceback.print_exc()
             return False
-    
+
     # If all rename attempts failed, handle the error
     cp.red(f"Failed to move file to the reject directory: {filepath}")
     return False
@@ -313,7 +325,7 @@ def try_rename(src_path, dst_path):
     try:
         os.rename(src_path, dst_path)
         return True
-    except FileExistsError as e:
+    except FileExistsError:
         return False
     except FileNotFoundError:
         raise

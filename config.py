@@ -30,7 +30,7 @@ This file is used to configure the PDF uploader. It contains the following varia
 MAX_RUNTIME = None  # (24 * 60 - 5) * 60  # (5 minutes less than 24 hours * 60 minutes) * 60 seconds
 
 # Switches:
-LIVEAPI = True              # Set to True to use live API, False to use staging API, 
+LIVEAPI = True              # Set to True to use live API, False to use staging API,
 DEBUG = False               # Set to False to upload files, True to skip uploads
 DELETE_MODE = False         # Set to True to delete old processed PDFs, False to move them to their "Old PDFs" subdirectory
 
@@ -38,8 +38,8 @@ DELETE_MODE = False         # Set to True to delete old processed PDFs, False to
 # NOTE: User must have the sufficient permissions in Qualer: https://jgiquality.qualer.com/Company/Employees
 LOGIN_USER = "REDACTED_USER"
 LOGIN_PASS = "REDACTED_PASS"
-QUALER_ENDPOINT = "https://jgiquality.qualer.com/api" # Do not change this
-QUALER_STAGING_ENDPOINT = "https://jgiquality.staging.qualer.com/api" # Do not change this
+QUALER_ENDPOINT = "https://jgiquality.qualer.com/api"  # Do not change this
+QUALER_STAGING_ENDPOINT = "https://jgiquality.staging.qualer.com/api"  # Do not change this
 
 # Tesseract OCR path:
 tesseract_cmd_path = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
@@ -65,7 +65,7 @@ Dependencies (Whole program):
 - PyPDF2 (for PDF manipulation): https://pypi.org/project/PyPDF2/
 - pytesseract (for OCR): https://pypi.org/project/pytesseract/
 - requests (for API): https://pypi.org/project/requests/
-- pypdfium2 (for PDF to image conversion): https://pypi.org/project/pypdfium2/ 
+- pypdfium2 (for PDF to image conversion): https://pypi.org/project/pypdfium2/
 - watchdog (for file watching): https://pypi.org/project/watchdog/
 - opencv-python (for image manipulation): https://pypi.org/project/opencv-python/
 - PyMuPDF (for PDF to image conversion): https://pypi.org/project/PyMuPDF/

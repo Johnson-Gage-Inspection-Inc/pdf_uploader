@@ -21,10 +21,12 @@ from app.archive import move_old_pdfs
 from config import CONFIG, DELETE_MODE, MAX_RUNTIME
 from upload import process_file
 
+
 def process_pdfs(parameters):
     print("Checking for PDF files in \"", parameters[0], "\"...")
     for filepath in pdf.next(parameters[0]):
         process_file(filepath, parameters)
+
 
 class PDFFileHandler(FileSystemEventHandler):
     def __init__(self, input_dir, parameters):
@@ -34,13 +36,14 @@ class PDFFileHandler(FileSystemEventHandler):
 
     # Called when a file is created in the input directory
     def on_created(self, event):
-        time.sleep(3) # Wait for the file to finish writing
+        time.sleep(3)  # Wait for the file to finish writing
         process_pdfs(self.parameters)
-    
+
     # Called when a file is moved into the input directory or renamed
     def on_moved(self, event):
-        time.sleep(1) # Wait for the file to finish writing
+        time.sleep(1)  # Wait for the file to finish writing
         process_pdfs(self.parameters)
+
 
 # Watch a directory for new PDF files
 def watch_directory(input_dir, parameters):
@@ -65,12 +68,14 @@ def watch_directory(input_dir, parameters):
         observer.stop()  # Stop the file system watcher if interrupted by the user
         observer.join()
 
+
 # Convert a dictionary to a list of lists
 def dict_to_list_of_lists(data):
     result = []
     for item in data:
         result.append(list(item.values()))
     return result
+
 
 #############################################################################
 ############################# Main Script ###################################
@@ -80,8 +85,8 @@ qualer_parameter_sets = dict_to_list_of_lists(CONFIG)
 
 # Process pre-existing PDF files
 for qualer_parameters in qualer_parameter_sets:
-    move_old_pdfs(qualer_parameters[1], DELETE_MODE) # Check for and move PDFs in the archive directory not created today
-    move_old_pdfs(qualer_parameters[2], DELETE_MODE) # Check for and move PDFs in the reject directory not created today
+    move_old_pdfs(qualer_parameters[1], DELETE_MODE)  # Check for and move PDFs in the archive directory not created today
+    move_old_pdfs(qualer_parameters[2], DELETE_MODE)  # Check for and move PDFs in the reject directory not created today
     process_pdfs(qualer_parameters)
 
 # Create a separate thread to watch each input directory
