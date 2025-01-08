@@ -2,9 +2,7 @@ import datetime as dt
 import gzip
 import json
 import os
-
 import app.api as api
-from config import *
 
 DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
@@ -78,7 +76,7 @@ def update_PO_numbers(file_path: str, token: str, modified_after: str = None) ->
     except gzip.BadGzipFile:
         dict = _get_PO_numbers(token)
         save_as_zip_file(file_path, dict)
-    except:
+    except FileNotFoundError:
         raise
 
     current_datetime = dt.datetime.now()                                    # Get the current datetime
@@ -95,7 +93,7 @@ def update_PO_numbers(file_path: str, token: str, modified_after: str = None) ->
         response = api.get_service_orders(data, token)
         if len(response) > 0:
             dict = update_dict(dict, response)
-            save_as_zip_file(file_path, dict) # Compress the updated dictionary and write to the file
+            save_as_zip_file(file_path, dict)  # Compress the updated dictionary and write to the file
             print("Dictionary updated and saved to", file_path)
             return dict
     print("No changes detected since the last update.")
@@ -150,6 +148,7 @@ def extract_po(filename: str) -> str:
             if len(possible_po) < len(po):
                 po = possible_po
     return po
+
 
 if os.path.exists('app'):
     file_path = 'app/dict.json.gz'  # Local path

@@ -3,6 +3,7 @@ import shutil
 import time
 import zipfile
 
+
 def move_old_pdfs(folder, delete_mode=False):
     print(f"Checking \"{folder}\" for PDFs from before today...")
 

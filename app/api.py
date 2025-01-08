@@ -9,8 +9,10 @@ import requests
 import app.color_print as cp
 import app.pdf as pdf
 from config import *
+from urllib3.exceptions import MaxRetryError
 
 ERROR_FLAG = "ERROR:"
+
 
 def handle_error(response):
     cp.red(ERROR_FLAG)
@@ -42,18 +44,22 @@ def login(endpoint, username, password):
         "Password": password,
         "ClearPreviousTokens": "False"
     }
+    try:
+        with requests.post(endpoint, data=json.dumps(data), headers=header) as r:
+            if r.status_code != 200:
+                handle_error(r)
 
-    with requests.post(endpoint, data=json.dumps(data), headers=header) as r:
-        if r.status_code != 200:
-            handle_error(r)
+            try:
+                response = json.loads(r.text)
+                token = response['Token']
+                cp.green("Api-Token " + token)
+                return token
+            except Exception as e:
+                handle_exception(e, r)
 
-        try:
-            response = json.loads(r.text)
-            token = response['Token']
-            cp.green("Api-Token " + token)
-            return token
-        except Exception as e:
-            handle_exception(e, r)
+    except MaxRetryError:
+        print("Is the internet down?")
+
 
 def get_service_orders(data, token):
     endpoint = QUALER_ENDPOINT + '/service/workorders'
@@ -69,6 +75,7 @@ def get_service_orders(data, token):
         print(str(len(response)) + " service orders found.")
         return response
 
+
 def getServiceOrderId(endpoint, token, workOrderNumber):
     print("Fetching service order id for work order: " + workOrderNumber + "...")
     data = {"workOrderNumber": workOrderNumber}
@@ -77,7 +84,7 @@ def getServiceOrderId(endpoint, token, workOrderNumber):
         # comes as a list, so return ServiceOrderId from first element
         return response[0]['ServiceOrderId']
     except Exception as e:
-        handle_exception(e, r)
+        handle_exception(e, response)
 
 
 def upload(endpoint, token, filepath, serviceOrderId, qualertype):
@@ -95,9 +102,9 @@ def upload(endpoint, token, filepath, serviceOrderId, qualertype):
 
     while attempts < 5:
         if attempts > 0:
-                new_filename = pdf.increment_filename(filepath)
-                pdf.try_rename(filepath, new_filename)
-                filepath = new_filename
+            new_filename = pdf.increment_filename(filepath)
+            pdf.try_rename(filepath, new_filename)
+            filepath = new_filename
         with open(filepath, 'rb') as file:
             files = {'file': file}
 
