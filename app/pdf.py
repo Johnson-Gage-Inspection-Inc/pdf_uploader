@@ -1,15 +1,25 @@
 # /app/pdf.py
 
-import os
+from fitz import open as fopen, Matrix
+import numpy as np
+from pdf2image import convert_from_path
+from PyPDF2 import PdfReader, PdfWriter
+from pytesseract import pytesseract, image_to_osd, image_to_string, TesseractError
+from PIL import Image
+from pypdfium2 import PdfDocument
+from config import tesseract_cmd_path
+
+import app.color_print as cp
 import re
-import sys
 import time
 import traceback
+import os
+import sys
 
 # pip3 install opencv-python PyMuPDF numpy pdf2image PyPDF2 pytesseract Pillow pypdfium2
 
 try:
-    import cv2
+    import cv2  # pip3 install opencv-python
     cv2_imported = True
 except ImportError as e:
     cv2_imported = False
@@ -17,20 +27,8 @@ except ImportError as e:
     input(e)
     traceback.print_exc()
 
-
-import fitz
-import numpy as np
-import pdf2image
-import PyPDF2
-import pytesseract
-from PIL import Image
-from pypdfium2 import PdfDocument
-from config import tesseract_cmd_path
-
-import app.color_print as cp
-
 try:
-    pytesseract.pytesseract.tesseract_cmd = tesseract_cmd_path
+    pytesseract.tesseract_cmd = tesseract_cmd_path
 except Exception as e:
     cp.red(f"Tesseract not found at: {tesseract_cmd_path}. Please install Tesseract and set the path in config.py\n{e}")
 
@@ -51,9 +49,9 @@ def get_pdf_orientation(filepath):
 
 
 def convert_pdf_to_image(filepath):
-    doc = fitz.open(filepath)
+    doc = fopen(filepath)
     page = doc.load_page(0)  # It assumes you want to check the orientation of the first page
-    pix = page.get_pixmap(matrix=fitz.Matrix(300 / 72, 300 / 72))
+    pix = page.get_pixmap(matrix=Matrix(300 / 72, 300 / 72))
     image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
     return image
 
@@ -68,7 +66,7 @@ def get_text_orientation(image):
 
         temp_file = "temp.png"
         image.save(temp_file)                           # Save the PIL image to a temporary file
-        text = pytesseract.image_to_osd(temp_file)      # Perform OCR on the temporary file
+        text = image_to_osd(temp_file)      # Perform OCR on the temporary file
         os.remove(temp_file)                            # Remove the temporary file
 
         for line in text.splitlines():
@@ -83,7 +81,7 @@ def get_text_orientation(image):
             return None                                 # Unknown rotation
         else:
             return rotation_angle
-    except pytesseract.TesseractError as e:
+    except TesseractError as e:
         cp.yellow("TesseractError: " + str(e))
         return None
     except Exception as e:
@@ -119,8 +117,8 @@ def rotate_pdf(filepath, degrees=180):
             raise ValueError('degrees must be 0, 90, 180, or 270.')             # Raise error if invalid degrees
 
         with open_with_debug(filepath, 'rb') as file:                           # Open the PDF file in read-binary mode
-            reader = PyPDF2.PdfReader(file)                                     # Create a PDF reader object
-            writer = PyPDF2.PdfWriter()                                         # Create a PDF writer object
+            reader = PdfReader(file)                                     # Create a PDF reader object
+            writer = PdfWriter()                                         # Create a PDF writer object
             for page_num in range(len(reader.pages)):                           # Iterate over each page in the PDF
                 page = reader.pages[page_num]                                   # Get the page object
                 page.rotate(degrees)                                            # Rotate the page
@@ -185,7 +183,7 @@ def _pdf_to_img(pdf_file):
         try:
             # Fallback option: Use pdf2image library
             cp.yellow(f"PyPDFium2 failed. Using pdf2image to convert {os.path.basename(pdf_file)} to images.")
-            images = pdf2image.convert_from_path(pdf_file)
+            images = convert_from_path(pdf_file)
             return images
         except Exception as fallback_error:
             cp.red("Fallback conversion to images failed:")
@@ -199,7 +197,7 @@ def tesseractOcr(pdf_file):
     images = _pdf_to_img(pdf_file)                          # Get list of PIL images
     text = []
     for pg, img in enumerate(images):                       # Loop through images
-        page_text = pytesseract.image_to_string(img)        # OCR image
+        page_text = image_to_string(img)        # OCR image
         text.append(page_text)                              # Append to list
     return text                                             # Return text string of all pages
 
@@ -210,7 +208,7 @@ def extract(filepath):
     # print("Scanning "+filepath+" for text...")
 
     try:
-        reader = PyPDF2.PdfReader(filepath)
+        reader = PdfReader(filepath)
         for page in reader.pages:
             text.append(page.extract_text())
     except Exception as e:
@@ -232,8 +230,8 @@ def extract(filepath):
 def create_child_pdf(filepath, pg_nums, output_path):
     try:
         with open_with_debug(filepath, 'rb') as pdf_file:
-            pdf_reader = PyPDF2.PdfReader(pdf_file)
-            pdf_writer = PyPDF2.PdfWriter()
+            pdf_reader = PdfReader(pdf_file)
+            pdf_writer = PdfWriter()
             for page_num in pg_nums:
                 pdf_writer.add_page(pdf_reader.pages[page_num])
             with open_with_debug(output_path, 'wb') as output:
@@ -273,7 +271,7 @@ def workorders(filepath):
 def increment_filename(old_filename):
     for i in range(99, 0, -1):
         old_suffix = f" ({i}).pdf"
-        new_suffix = f" ({i+1}).pdf"
+        new_suffix = f" ({i + 1}).pdf"
         new_filename = old_filename.replace(old_suffix, new_suffix)
         if new_filename != old_filename:
             break
