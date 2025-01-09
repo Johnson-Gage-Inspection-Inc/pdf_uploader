@@ -28,7 +28,7 @@ This project provides a complete solution for processing and uploading PDF files
 
 - **PDF Manipulation**:
 
-  - Backup OCR text extraction, in case there's no OCR from the scanner.
+  - Backup OCR text extraction, in case there's no OCR from the
   - Detect PDF orientation; ensure each PDF is upright.
   - Split multi-page PDFs into pages for specific work orders (Going from the first to the last page, each time a detected workorder number is different than the previous, the page it's on will become the first page of the next document.)
 
