@@ -21,7 +21,6 @@ This project provides a complete solution for processing and uploading PDF files
     - [Operating instructions](#operating-instructions)
     - [Workflow Overview](#workflow-overview)
   - [Development](#development)
-  - [License](#license)
 
 ---
 
@@ -262,10 +261,3 @@ The `pdf_uploader` script automates the processing and categorization of scanned
 
   - The `/myenv/` directory ensures isolated package management.
   - When building executables, dependencies in `/myenv/` are bundled, such as `pypdfium2_raw`.
-
----
-
-## License
-
-This project is licensed under the MIT License. See `LICENSE` for details.
-
