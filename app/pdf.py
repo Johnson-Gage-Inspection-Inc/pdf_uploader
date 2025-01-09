@@ -10,9 +10,9 @@ from pypdfium2 import PdfDocument
 from config import tesseract_cmd_path
 
 import app.color_print as cp
-import re
-import time
-import traceback
+from re import findall
+from time import sleep
+from traceback import print_exc
 import os
 import sys
 
@@ -25,7 +25,7 @@ except ImportError as e:
     cv2_imported = False
     print("ImportError: cv2 not found.")
     input(e)
-    traceback.print_exc()
+    print_exc()
 
 try:
     pytesseract.tesseract_cmd = tesseract_cmd_path
@@ -128,7 +128,7 @@ def rotate_pdf(filepath, degrees=180):
         cp.green("PDF rotation complete.")
         return True
     except Exception:
-        traceback.print_exc()
+        print_exc()
         return False
 
 #########################################################################################################################
@@ -144,7 +144,7 @@ def open_with_debug(file_path, mode='r'):
         file_obj = open(file_path, mode)
         return file_obj
     except Exception:
-        traceback.print_exc()
+        print_exc()
         sys.exit(1)
 
 
@@ -179,7 +179,7 @@ def _pdf_to_img(pdf_file):
 
     except Exception as e:
         cp.red(e)
-        traceback.print_exc()
+        print_exc()
         try:
             # Fallback option: Use pdf2image library
             cp.yellow(f"PyPDFium2 failed. Using pdf2image to convert {os.path.basename(pdf_file)} to images.")
@@ -188,7 +188,7 @@ def _pdf_to_img(pdf_file):
         except Exception as fallback_error:
             cp.red("Fallback conversion to images failed:")
             cp.red(fallback_error)
-            traceback.print_exc()
+            print_exc()
     return []
 
 
@@ -245,14 +245,14 @@ def create_child_pdf(filepath, pg_nums, output_path):
 # extract work orders from pdf, create a set of pages for each work order, append pages with no work order to the previous work order.
 def workorders(filepath):
     order_number = ''
-    fileorders = re.findall(PO_NUM_FORMAT, filepath)            # Find order numbers in file name
+    fileorders = findall(PO_NUM_FORMAT, filepath)            # Find order numbers in file name
     if fileorders != []:                                        # If order number found in file name
         return fileorders                                       # Return orders number found in file name
 
     text = extract(filepath)                                    # Get list of text from PDF
     scannedorders = {}                                          # Create empty dictionary for order numbers
     for page_index, page in enumerate(text):                    # Loop through pages
-        order_numbers = re.findall(PO_NUM_FORMAT, page)         # Find order numbers in page
+        order_numbers = findall(PO_NUM_FORMAT, page)         # Find order numbers in page
         if order_numbers != []:                                 # If new order number found
             order_number = order_numbers[0]                     # Use new order number
         else:
@@ -277,7 +277,7 @@ def increment_filename(old_filename):
             break
     else:
         new_filename = old_filename.replace(".pdf", " (1).pdf")
-    time.sleep(1)  # Wait 1 second before renaming
+    sleep(1)  # Wait 1 second before renaming
     return new_filename
 
 
@@ -294,7 +294,7 @@ def move_file(filepath, output_dir):
         except PermissionError as e:
             cp.red(e)
             attempt += 1
-            time.sleep(1)  # Wait 1 second before retrying
+            sleep(1)  # Wait 1 second before retrying
         except FileExistsError:
             if attempt == 0:
                 print("Incrementing filename...", end="")
@@ -310,7 +310,7 @@ def move_file(filepath, output_dir):
             cp.red("Unexpected exception for " + filepath)
             cp.red(f"Failed to move {filepath} to {new_filepath}.")
             cp.red(e)
-            traceback.print_exc()
+            print_exc()
             return False
 
     # If all rename attempts failed, handle the error
