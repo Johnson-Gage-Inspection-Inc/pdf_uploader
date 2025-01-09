@@ -27,20 +27,17 @@ This project provides a complete solution for processing and uploading PDF files
 ## Features
 
 - **PDF Manipulation**:
-
-  - Backup OCR text extraction, in case there's no OCR from the
-  - Detect PDF orientation; ensure each PDF is upright.
-  - Split multi-page PDFs into pages for specific work orders (Going from the first to the last page, each time a detected workorder number is different than the previous, the page it's on will become the first page of the next document.)
+  - Backup OCR if not provided by the scanner.
+  - Ensure PDFs are upright by detecting and correcting orientation.
+  - Split multi-page PDFs into separate files when a new work order number is detected.
 
 - **File Automation**:
-
   - Automatically watch directories for new PDFs.
-  - Identify document type, based on source, contents, or filename.
+  - Identify document type based on source, contents, or filename.
   - Archive or delete processed files based on settings.
   - Handle file renaming to avoid conflicts.
 
 - **Integration**:
-
   - Upload PDFs to the Qualer API with detailed logging.
   - Retry and resolve naming conflicts during uploads.
 
@@ -76,7 +73,7 @@ Ensure you have the following installed:
 
 ### Installation
 
-1. Clone the repository.**
+1. Clone the repository.
 
 #### Setting up the virtual environment
 
@@ -111,7 +108,7 @@ Ensure you have the following installed:
    This user must at least have the API security role.
    ![alt text](image.png)
 
-   Talk to Jeff or Johnny if you need these credentials.
+   Contact Jeff or Johnny if you need these credentials.
 
 5. Ensure `.env` is added to your `.gitignore` file to prevent it from being committed to the repository.
 
@@ -128,6 +125,8 @@ Ensure you have the following installed:
 
    pyinstaller --onefile --clean --add-data "myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2_raw/version.json;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2/version.json;pypdfium2" --add-data "app/dict.json.gz;_internal" watcher.py
    ```
+   Creating a standalone executable ensures the program can run without requiring Python, dependencies, or credentials on the target system.
+
 
 ---
 
@@ -180,7 +179,6 @@ watcher.exe
 ### Operating instructions
 
 The `pdf_uploader` script automates the processing and categorization of scanned PDF files based on their filenames, content, and designated scanner output paths. This helps streamline document management and upload processes.
-
 
 
 ### Workflow Overview
