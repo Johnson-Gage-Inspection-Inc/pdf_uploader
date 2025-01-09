@@ -9,10 +9,11 @@ This project provides a complete solution for processing and uploading PDF files
 - [PDF Processor and Uploader](#pdf-processor-and-uploader)
   - [Table of Contents](#table-of-contents)
   - [Features](#features)
-  - [Requirements](#requirements)
-  - [Installation](#installation)
-    - [Setting up the virtual environment](#setting-up-the-virtual-environment)
-  - [Configuration](#configuration)
+  - [Setup](#setup)
+    - [Requirements](#requirements)
+    - [Installation](#installation)
+      - [Setting up the virtual environment](#setting-up-the-virtual-environment)
+    - [Configuration](#configuration)
   - [Usage](#usage)
     - [Starting the program:](#starting-the-program)
       - [Run with Python:](#run-with-python)
@@ -46,7 +47,9 @@ This project provides a complete solution for processing and uploading PDF files
 
 ---
 
-## Requirements
+## Setup
+
+### Requirements
 
 Ensure you have the following installed:
 
@@ -72,11 +75,11 @@ Ensure you have the following installed:
 
 ---
 
-## Installation
+### Installation
 
 1. Clone the repository.**
 
-### Setting up the virtual environment
+#### Setting up the virtual environment
 
 1. Create a virtual environment:
 
@@ -129,7 +132,7 @@ Ensure you have the following installed:
 
 ---
 
-## Configuration
+### Configuration
 
 Sensitive API credentials are securely stored in a `.env` file. Update your `.env` file with the following variables:
 
