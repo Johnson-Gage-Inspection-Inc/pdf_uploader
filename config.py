@@ -51,6 +51,8 @@ tesseract_cmd_path = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 # Get the user's home directory
 user_folder = path.expanduser("~")  # e.g. 'C:\Users\JohnDoe'
 
+LOG_FILE = user_folder + r'/OneDrive - Johnson Gage and Inspection, Inc/Shared with Everyone/access/Logs/pdfUploader.log'
+
 # Dictionary of directories to watch:
 CONFIG = [
     {
