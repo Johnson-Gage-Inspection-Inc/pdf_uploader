@@ -26,6 +26,8 @@ This file is used to configure the PDF uploader. It contains the following varia
     - general, assetsummary, assetlabel, assetdetail, assetcertificate, ordersummary,
     - orderinvoice, orderestimate, dashboard, orderdetail, ordercertificate
 """
+from os.path import expanduser
+
 # Run time.  If the script runs longer than this, it will exit. This should coincide with the settings for the corresponding task in Task Scheduler on VMHOST.
 MAX_RUNTIME = None  # (24 * 60 - 5) * 60  # (5 minutes less than 24 hours * 60 minutes) * 60 seconds
 
@@ -42,20 +44,24 @@ QUALER_ENDPOINT = "https://jgiquality.qualer.com/api"  # Do not change this
 QUALER_STAGING_ENDPOINT = "https://jgiquality.staging.qualer.com/api"  # Do not change this
 
 # Tesseract OCR path:
-tesseract_cmd_path = r'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+tesseract_cmd_path = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
+
+
+# Get the user's home directory
+user_folder = expanduser("~")  # e.g. 'C:\Users\JohnDoe'
 
 # Dictionary of directories to watch:
 CONFIG = [
     {
-        'INPUT_DIR': r'C:\\Users\\wneil\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Front Office Scanned Docs - HOLDING',
-        'OUTPUT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Front Office Scanned Docs - HOLDING\\Archives',
-        'REJECT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Front Office Scanned Docs - HOLDING\\No_Order_Found',
+        'INPUT_DIR': user_folder + r'/OneDrive - Johnson Gage and Inspection, Inc/Shared with Everyone/access/!!! Front Office Scanned Docs - HOLDING',
+        'OUTPUT_DIR': user_folder + r'/OneDrive - Johnson Gage and Inspection, Inc/Shared with Everyone/access/!!! Front Office Scanned Docs - HOLDING/Archives',
+        'REJECT_DIR': user_folder + r'/OneDrive - Johnson Gage and Inspection, Inc/Shared with Everyone/access/!!! Front Office Scanned Docs - HOLDING/No_Order_Found',
         'QUALER_DOCUMENT_TYPE': 'General'
     },
     {
-        'INPUT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Scanned External Certs',
-        'OUTPUT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\\access\\!!! Scanned External Certs\\Archives',
-        'REJECT_DIR': r'C:\\Users\\wneil\\OneDrive - Johnson Gage and Inspection, Inc\\Shared with Everyone\access\\!!! Scanned External Certs\\No_Order_Found',
+        'INPUT_DIR': user_folder + r'/OneDrive - Johnson Gage and Inspection, Inc/Shared with Everyone/access/!!! Scanned External Certs',
+        'OUTPUT_DIR': user_folder + r'/OneDrive - Johnson Gage and Inspection, Inc/Shared with Everyone/access/!!! Scanned External Certs/Archives',
+        'REJECT_DIR': user_folder + r'/OneDrive - Johnson Gage and Inspection, Inc/Shared with Everyone/access/!!! Scanned External Certs/No_Order_Found',
         'QUALER_DOCUMENT_TYPE': 'ordercertificate'
     }
 ]

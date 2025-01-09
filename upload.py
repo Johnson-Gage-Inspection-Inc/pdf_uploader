@@ -11,7 +11,7 @@ windows/linux
 pip3 install PyPDF2 pytesseract requests pypdfium2
 """
 
-import datetime as dt
+from datetime import datetime
 import os
 import traceback
 import app.color_print as cp
@@ -19,10 +19,10 @@ import app.color_print as cp
 from PurchaseOrders import update_PO_numbers, file_path, extract_po
 import app.api as api
 import app.pdf as pdf
-from config import *
+from config import QUALER_STAGING_ENDPOINT, LOGIN_USER, LOGIN_PASS, DEBUG, LIVEAPI, QUALER_ENDPOINT
 
 if not LIVEAPI:
-    QUALER_ENDPOINT = QUALER_STAGING_ENDPOINT
+    QUALER_ENDPOINT = QUALER_STAGING_ENDPOINT  # noqa: F811
     cp.yellow("Using staging API")
 
 token = api.login(QUALER_ENDPOINT, LOGIN_USER, LOGIN_PASS)
@@ -191,7 +191,7 @@ def process_file(filepath, qualer_parameters):
         else:                                                                           # For multiple work orders,
             cp.green("Multiple work orders found within file: " + str(workorders))       # Print the work order numbers
             for workorder, pg_nums in workorders.items():                               # loop through the workorders dict object,
-                now = dt.datetime.now().strftime("%Y%m%dT%H%M%S")                       # get the current date and time,
+                now = datetime.now().strftime("%Y%m%dT%H%M%S")                       # get the current date and time,
                 child_pdf_path = f'{INPUT_DIR}/scanned_doc_{workorder}_{now}.pdf'       # create a new file path for the extracted pages,
                 pdf.create_child_pdf(filepath, pg_nums, child_pdf_path)                 # extract relevant pages from PDF, and
                 uploadResult, new_child_pdf_path = fetch_SO_and_upload(workorder, child_pdf_path, QUALER_DOCUMENT_TYPE)  # upload extracted pages
