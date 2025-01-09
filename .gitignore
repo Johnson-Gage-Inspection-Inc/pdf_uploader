@@ -17,3 +17,4 @@ build/
 unused_stuff/
 
 .env
+replacements.txt
