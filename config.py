@@ -26,7 +26,7 @@ This file is used to configure the PDF uploader. It contains the following varia
     - general, assetsummary, assetlabel, assetdetail, assetcertificate, ordersummary,
     - orderinvoice, orderestimate, dashboard, orderdetail, ordercertificate
 """
-from os.path import expanduser
+from os import path, environ
 
 # Run time.  If the script runs longer than this, it will exit. This should coincide with the settings for the corresponding task in Task Scheduler on VMHOST.
 MAX_RUNTIME = None  # (24 * 60 - 5) * 60  # (5 minutes less than 24 hours * 60 minutes) * 60 seconds
@@ -38,8 +38,9 @@ DELETE_MODE = False         # Set to True to delete old processed PDFs, False to
 
 # Qualer API login credentials:
 # NOTE: User must have the sufficient permissions in Qualer: https://jgiquality.qualer.com/Company/Employees
-LOGIN_USER = "REDACTED_USER"
-LOGIN_PASS = "REDACTED_PASS"
+# Environment variables can be used to store these values securely.
+LOGIN_USER = environ.get('QUALER_USER')  # e.g. os.environ.get('QUALER_USER')
+LOGIN_PASS = environ.get('QUALER_PASS')  # e.g. os.environ.get('QUALER_PASS')
 QUALER_ENDPOINT = "https://jgiquality.qualer.com/api"  # Do not change this
 QUALER_STAGING_ENDPOINT = "https://jgiquality.staging.qualer.com/api"  # Do not change this
 
@@ -48,7 +49,7 @@ tesseract_cmd_path = r'C:/Program Files/Tesseract-OCR/tesseract.exe'
 
 
 # Get the user's home directory
-user_folder = expanduser("~")  # e.g. 'C:\Users\JohnDoe'
+user_folder = path.expanduser("~")  # e.g. 'C:\Users\JohnDoe'
 
 # Dictionary of directories to watch:
 CONFIG = [
