@@ -7,7 +7,7 @@ from PyPDF2 import PdfReader, PdfWriter
 from pytesseract import pytesseract, image_to_osd, image_to_string, TesseractError
 from PIL import Image
 from pypdfium2 import PdfDocument
-from config import tesseract_cmd_path
+from app.config import tesseract_cmd_path
 
 import app.color_print as cp
 from re import findall
@@ -23,7 +23,7 @@ try:
     cv2_imported = True
 except ImportError as e:
     cv2_imported = False
-    print("ImportError: cv2 not found.")
+    cp.white("ImportError: cv2 not found.")
     input(e)
     print_exc()
 
@@ -205,22 +205,22 @@ def tesseractOcr(pdf_file):
 # extract text from pdf
 def extract(filepath):
     text = []
-    # print("Scanning "+filepath+" for text...")
+    # cp.white(f"Scanning {filepath} for text...")
 
     try:
         reader = PdfReader(filepath)
         for page in reader.pages:
             text.append(page.extract_text())
     except Exception as e:
-        print(e)
+        cp.white(e)
     try:
         if text == []:
             cp.yellow(f"PyPDF2 failed. Using OCR to extract text from {filepath}.")
             text = tesseractOcr(filepath)
         else:
-            print(f"Used PyPDF2 to extract text from {filepath}.")
+            cp.white(f"Used PyPDF2 to extract text from {filepath}.")
     except Exception as e:
-        print(e)
+        cp.white(e)
         pass
 
     return text
@@ -300,7 +300,7 @@ def move_file(filepath, output_dir):
                 print("Incrementing filename...", end="")
             else:
                 print(".", end="")
-            print()
+            cp.white()
             new_filepath = increment_filename(new_filepath)
             attempt += 1
         except FileNotFoundError as e:  # This probably means the file was already moved by another process (Perhaps another instance of this script is running?)

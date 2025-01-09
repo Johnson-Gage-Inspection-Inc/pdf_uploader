@@ -1,6 +1,6 @@
 # app/color_print.py
 import logging
-from config import LOG_FILE
+from app.config import LOG_FILE
 
 # Logging levels:
 # DEBUG: Detailed information, typically of interest only when diagnosing problems.
@@ -10,7 +10,7 @@ from config import LOG_FILE
 # CRITICAL: A serious error, indicating that the program itself may be unable to continue running.
 
 # Configure logging:
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', filename=LOG_FILE, filemode='w')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', filename=LOG_FILE, filemode='a')
 
 colorama_installed = False
 
@@ -23,40 +23,46 @@ except ImportError:
     exit(1)
 
 
+def color(text, color):
+    assert color in Fore.__dict__, f"Invalid color: {color}"
+    print(Fore.__dict__[color.upper()] + str(text) + Style.RESET_ALL if colorama_installed else str(text))
+
+
 def black(text):  # Headers
-    print(Fore.BLACK + str(text) + Style.RESET_ALL) if colorama_installed else print(str(text))
+    logging.debug(text)
+    color(text, 'BLACK')
 
 
 def red(text):  # Errors and exceptions
     logging.error(text)
-    print(Fore.RED + str(text) + Style.RESET_ALL) if colorama_installed else print(str(text))
+    color(text, 'RED')
 
 
 def green(text):  # Successful
     logging.debug(text)
-    print(Fore.GREEN + str(text) + Style.RESET_ALL) if colorama_installed else print(str(text))
+    color(text, 'GREEN')
 
 
 def yellow(text):  # Warnings, notices, alerts
     logging.warning(text)
-    print(Fore.YELLOW + str(text) + Style.RESET_ALL) if colorama_installed else print(str(text))
+    color(text, 'YELLOW')
 
 
 def blue(text):  # Informational
     logging.info(text)
-    print(Fore.BLUE + str(text) + Style.RESET_ALL) if colorama_installed else print(str(text))
+    color(text, 'BLUE')
 
 
 def magenta(text):  # special or significant information, such as system status updates or important notices.
     logging.debug(text)
-    print(Fore.MAGENTA + str(text) + Style.RESET_ALL) if colorama_installed else print(str(text))
+    color(text, 'MAGENTA')
 
 
 def cyan(text):  # Prompts, user input
     logging.debug(text)
-    print(Fore.CYAN + str(text) + Style.RESET_ALL) if colorama_installed else print(str(text))
+    color(text, 'CYAN')
 
 
 def white(text):  # Default
     logging.debug(text)
-    print(Fore.WHITE + str(text) + Style.RESET_ALL) if colorama_installed else print(str(text))
+    print(text, 'WHITE')

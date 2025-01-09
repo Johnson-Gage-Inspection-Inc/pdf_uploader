@@ -3,6 +3,7 @@ import gzip
 import json
 import os
 import app.api as api
+import app.color_print as cp
 
 DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
@@ -44,7 +45,7 @@ def _get_PO_numbers(token: str, start_str="2020-08-13T00:00:00", end_str=dt.date
     to_date = from_date + dt.timedelta(days=increment)
 
     while True:
-        print(f"Getting service orders from {from_date.strftime(DT_FORMAT)} to {to_date.strftime(DT_FORMAT)}...")
+        cp.white(f"Getting service orders from {from_date.strftime(DT_FORMAT)} to {to_date.strftime(DT_FORMAT)}...")
         data = {
             'from': from_date.strftime(DT_FORMAT),
             'to': to_date.strftime(DT_FORMAT)
@@ -94,9 +95,9 @@ def update_PO_numbers(file_path: str, token: str, modified_after: str = None) ->
         if len(response) > 0:
             dict = update_dict(dict, response)
             save_as_zip_file(file_path, dict)  # Compress the updated dictionary and write to the file
-            print("Dictionary updated and saved to", file_path)
+            cp.white(f"Dictionary updated and saved to {file_path}.")
             return dict
-    print("No changes detected since the last update.")
+    cp.white("No changes detected since the last update.")
     return dict
 
 

@@ -2,10 +2,11 @@ import os
 import shutil
 import time
 import zipfile
+import app.color_print as cp
 
 
 def move_old_pdfs(folder, delete_mode=False):
-    print(f"Checking \"{folder}\" for PDFs from before today...")
+    cp.white(f"Checking \"{folder}\" for PDFs from before today...")
 
     # Get the current date
     current_date = time.strftime("%Y-%m-%d")
@@ -29,9 +30,9 @@ def move_old_pdfs(folder, delete_mode=False):
             if delete_mode:
                 try:
                     os.remove(file_path)
-                    print(f"Deleted {file}.")
+                    cp.white(f"Deleted {file}.")
                 except OSError as e:
-                    print(f"Error deleting {file}: {str(e)}")
+                    cp.white(f"Error deleting {file}: {str(e)}")
             else:
                 try:
                     # Create a zip folder
@@ -43,7 +44,7 @@ def move_old_pdfs(folder, delete_mode=False):
                     os.remove(file_path)
                     compressed += 1
                 except shutil.Error as e:
-                    print(f"Error compressing and moving {file}: {str(e)}")
+                    cp.white(f"Error compressing and moving {file}: {str(e)}")
                 except OSError as e:
-                    print(f"Error compressing and moving {file}: {str(e)} (File in use)")
-    print(f"Compressed {str(compressed)} files in {folder}.")
+                    cp.white(f"Error compressing and moving {file}: {str(e)} (File in use)")
+    cp.white(f"Compressed {str(compressed)} files in {folder}.")

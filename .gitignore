@@ -2,19 +2,7 @@
 
 # Ignore Python cache
 __pycache__/
-*.pyc
-*.pkl
-
-# Ignore log and temp files
-*.log
-temp/
-*.spec
-*.cfg
-
 myenv/
 dist/
 build/
-unused_stuff/
-
 .env
-replacements.txt

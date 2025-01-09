@@ -6,7 +6,7 @@
     "configurations": [
 
         {
-            "justMyCode": false,
+            "justMyCode": true,
             "name": "Python Debugger: watcher.py",
             "type": "debugpy",
             "request": "launch",

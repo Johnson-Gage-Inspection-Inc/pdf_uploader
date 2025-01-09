@@ -1,37 +1,40 @@
 # app/api.py
 
 import json
-import os.path as path
+from os import path
+from os import environ
 import traceback
-
 import requests
-
 import app.color_print as cp
 import app.pdf as pdf
-from config import *
+from app.config import *
 from urllib3.exceptions import MaxRetryError
+from app.connectivity import check_connectivity
 
 ERROR_FLAG = "ERROR:"
 
 
 def handle_error(response):
     cp.red(ERROR_FLAG)
-    cp.red("STATUS CODE:" + str(response.status_code))
-    cp.red("RESPONSE:" + response.text)
+    cp.red(f"STATUS CODE: {response.status_code}")
+    cp.red(f"RESPONSE: {response.text}")
     return
 
 
 def handle_exception(exception, response=None):
     cp.red(ERROR_FLAG)
     if response is not None:
-        cp.red("STATUS CODE:" + str(response.status_code))
-        cp.red("RESPONSE:" + response.text)
-    cp.red("EXCEPTION: " + str(exception))
+        cp.red(f"STATUS CODE: {response.status_code}")
+        cp.red(f"RESPONSE: {response.text}")
+    cp.red(f"EXCEPTION: {exception}")
     traceback.print_exc()
-    return
 
 
-def login(endpoint, username, password):
+def login(endpoint, username=None, password=None):
+    if username is None:
+        username = environ.get('QUALER_USER')
+    if password is None:
+        password = environ.get('QUALER_PASS')
     endpoint = endpoint + '/login'
 
     header = {
@@ -58,7 +61,9 @@ def login(endpoint, username, password):
                 handle_exception(e, r)
 
     except MaxRetryError:
-        print("Is the internet down?")
+        check_connectivity()
+        cp.red("Unable to connect to Qualer. Aborting...")
+        raise SystemExit
 
 
 def get_service_orders(data, token):
@@ -72,12 +77,12 @@ def get_service_orders(data, token):
         if r.status_code != 200:
             handle_error(r)
         response = json.loads(r.text)
-        print(str(len(response)) + " service orders found.")
+        cp.white(f"{len(response)} service orders found.")
         return response
 
 
 def getServiceOrderId(endpoint, token, workOrderNumber):
-    print("Fetching service order id for work order: " + workOrderNumber + "...")
+    cp.white("Fetching service order id for work order: " + workOrderNumber + "...")
     data = {"workOrderNumber": workOrderNumber}
     try:
         response = get_service_orders(data, token)
@@ -88,15 +93,15 @@ def getServiceOrderId(endpoint, token, workOrderNumber):
 
 
 def upload(endpoint, token, filepath, serviceOrderId, qualertype):
-    print("Attempting upload: SO# " + str(serviceOrderId) + " - " + path.basename(filepath))
+    cp.white(f"Attempting upload for SO# {serviceOrderId}: '{path.basename(filepath)}'")
 
     # https://requests.readthedocs.io/en/latest/user/quickstart/#post-a-multipart-encoded-file
 
-    endpoint = endpoint + '/service/workorders/' + str(serviceOrderId) + '/documents'
+    endpoint = f'{endpoint}/service/workorders/{serviceOrderId}/documents'
 
     if not path.exists(filepath):
         cp.red(ERROR_FLAG)
-        cp.red(filepath + " does not exist")
+        cp.red(f"{filepath} does not exist")
         return False
     attempts = 0
 
@@ -141,7 +146,7 @@ def upload(endpoint, token, filepath, serviceOrderId, qualertype):
 
 # Function to get a list of documents for a service order
 def get_service_order_document_list(endpoint, token, ServiceOrderId):
-    print("Fetching document list for service order: " + str(ServiceOrderId) + "...")
+    cp.white(f"Fetching document list for service order: {ServiceOrderId}...")
 
     headers = {
         'Accept': 'application/json',
@@ -165,7 +170,7 @@ def get_service_order_document_list(endpoint, token, ServiceOrderId):
             file_names = []
             for item in data:
                 file_names.append(item["FileName"])
-            print("Found " + str(len(file_names)) + " documents for service order: " + str(ServiceOrderId))
+            cp.white(f"Found {len(file_names)} documents for service order: {ServiceOrderId}")
             return file_names
         except Exception as e:
             handle_exception(e, r)

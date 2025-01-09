@@ -19,13 +19,15 @@ import app.color_print as cp
 from PurchaseOrders import update_PO_numbers, file_path, extract_po
 import app.api as api
 import app.pdf as pdf
-from config import QUALER_STAGING_ENDPOINT, LOGIN_USER, LOGIN_PASS, DEBUG, LIVEAPI, QUALER_ENDPOINT
+from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT
 
 if not LIVEAPI:
     QUALER_ENDPOINT = QUALER_STAGING_ENDPOINT  # noqa: F811
     cp.yellow("Using staging API")
 
-token = api.login(QUALER_ENDPOINT, LOGIN_USER, LOGIN_PASS)
+token = api.login(QUALER_ENDPOINT,
+                  username=os.environ.get('QUALER_USER'),
+                  password=os.environ.get('QUALER_PASS'))
 
 total = 0
 
@@ -33,7 +35,7 @@ total = 0
 # Rename File
 def rename_file(filepath, doc_list):
     try:
-        print("File already exists in Qualer. Renaming file...")
+        cp.white("File already exists in Qualer. Renaming file...")
         file_name = os.path.basename(filepath)
         attempts = 10
         did_rename = False
@@ -59,7 +61,7 @@ def upload_with_rename(filepath, serviceOrderId, QUALER_DOCUMENT_TYPE):
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(QUALER_ENDPOINT, token, serviceOrderId)  # get list of documents for the service order
     new_filepath = rename_file(filepath, doc_list) if file_name in doc_list else filepath  # if the file already exists in Qualer, rename it
-    uploadResult, new_filepath = api.upload(QUALER_ENDPOINT, token, new_filepath, serviceOrderId, QUALER_DOCUMENT_TYPE) if not DEBUG else print("debug mode, no uploads")
+    uploadResult, new_filepath = api.upload(QUALER_ENDPOINT, token, new_filepath, serviceOrderId, QUALER_DOCUMENT_TYPE) if not DEBUG else cp.yellow("debug mode, no uploads")
     return uploadResult, new_filepath
 
 
@@ -110,12 +112,12 @@ def upload_by_po(filepath, po, dict, QUALER_DOCUMENT_TYPE):
 def reorient_pdf_for_workorders(filepath, REJECT_DIR):
     file_name = os.path.basename(filepath)
     try:
-        print("Checking orientation of PDF file... " + file_name)
+        cp.white("Checking orientation of PDF file..." + file_name)
         orientation = pdf.get_pdf_orientation(filepath)  # get orientation of PDF file
-        print("Orientation: " + str(orientation) + " | " + file_name)
+        cp.white(f"Orientation: {orientation} | {file_name}")
         if orientation in [90, 180, 270]:
-            cp.yellow("Orientation: " + str(orientation) + " | " + file_name)
-            print("Rotating PDF file... " + file_name)
+            cp.yellow(f"Orientation: {orientation} | {file_name}")
+            cp.white("Rotating PDF file... " + file_name)
             did_rotate = pdf.rotate_pdf(filepath, orientation)  # rotate PDF file
             if did_rotate:
                 cp.green(file_name + " file rotated successfully.")
@@ -123,28 +125,28 @@ def reorient_pdf_for_workorders(filepath, REJECT_DIR):
             if workorders:
                 return workorders
             else:  # If there are still no work orders, skip the file
-                cp.yellow("no work order found in " + file_name + ", file skipped")
+                cp.yellow(f"no work order found in {file_name}, file skipped")
                 pdf.move_file(filepath, REJECT_DIR)  # move file to reject directory
                 return False  # return False to main loop
         elif orientation == 0:
-            print("File appears to be right-side-up. Moving file to reject directory...")
+            cp.white("File appears to be right-side-up. Moving file to reject directory...")
             pdf.move_file(filepath, REJECT_DIR)  # move file to reject directory
         else:
-            cp.yellow("Reorientation of " + file_name + " failed. Skipping file...")
-            print("Moving file to reject directory...")
+            cp.yellow(f"Reorientation of {file_name} failed. Skipping file...")
+            cp.white("Moving file to reject directory...")
             pdf.move_file(filepath, REJECT_DIR)  # move file to reject directory
             return False
     except FileNotFoundError as e:
-        cp.red("Error:" + filepath + " not found.", e)
+        cp.red(f"Error: {filepath} not found. {e}")
         return False
     except Exception as e:
-        cp.red("Error: " + str(e) + "\nFile: " + file_name)
+        cp.red(f"Error: {e}\nFile: {file_name}")
         return False
 
 
 # Main function
 def process_file(filepath, qualer_parameters):
-    cp.blue("Processing file: " + filepath)
+    cp.blue(f"Processing file: {filepath}")
     # unpack parameters
     INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters
 
@@ -159,13 +161,13 @@ def process_file(filepath, qualer_parameters):
     if filename.startswith("PO"):
         po = extract_po(filename)
         po_dict = update_PO_numbers(file_path, token)
-        print("PO found in file name: " + po)
+        cp.white("PO found in file name: " + po)
         successSOs, failedSOs, new_filepath = upload_by_po(filepath, po, po_dict, QUALER_DOCUMENT_TYPE)
         if successSOs:
-            cp.green(filename + " uploaded successfully to SOs: " + str(successSOs))
+            cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
             uploadResult = True
         if failedSOs:
-            cp.red(filename + " failed to upload to SOs: " + str(failedSOs))
+            cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
 
     if not uploadResult:
         # Check for work orders in file body or file name
@@ -179,17 +181,17 @@ def process_file(filepath, qualer_parameters):
 
         # if work orders found in filename, upload file to Qualer endpoint(s)
         if isinstance(workorders, list):
-            cp.green("Work order(s) found in file name: " + str(workorders))             # Print the work order numbers
+            cp.green(f"Work order(s) found in file name: {workorders}")             # Print the work order numbers
             for workorder in workorders:                                                # loop through work orders list and upload
                 uploadResult, new_filepath = fetch_SO_and_upload(workorder, filepath, QUALER_DOCUMENT_TYPE)  # upload file
 
         elif len(workorders) == 1:                                                      # One work order was found in the file body (dict object of length 1)
             workorder = list(workorders.keys())[0]                                      # Get the work order number
-            cp.green("One (1) work order found within file: " + str(workorder))          # Print the work order number
+            cp.green(f"One (1) work order found within file: {workorder}")          # Print the work order number
             uploadResult, new_filepath = fetch_SO_and_upload(workorder, filepath, QUALER_DOCUMENT_TYPE)  # Upload the file
 
         else:                                                                           # For multiple work orders,
-            cp.green("Multiple work orders found within file: " + str(workorders))       # Print the work order numbers
+            cp.green(f"Multiple work orders found within file: {workorders}")       # Print the work order numbers
             for workorder, pg_nums in workorders.items():                               # loop through the workorders dict object,
                 now = datetime.now().strftime("%Y%m%dT%H%M%S")                       # get the current date and time,
                 child_pdf_path = f'{INPUT_DIR}/scanned_doc_{workorder}_{now}.pdf'       # create a new file path for the extracted pages,
