@@ -1,3 +1,4 @@
+#
 import datetime as dt
 import gzip
 import json
@@ -60,7 +61,7 @@ def _get_PO_numbers(token: str, start_str="2020-08-13T00:00:00", end_str=dt.date
     return dict
 
 
-def update_PO_numbers(file_path: str, token: str, modified_after: str = None) -> dict:
+def update_PO_numbers(token: str, file_path: str = 'app/dict.json.gz', modified_after: str = None) -> dict:
     """ Update the PO dictionary with new PO numbers from the API.
 
     Args:
@@ -73,10 +74,10 @@ def update_PO_numbers(file_path: str, token: str, modified_after: str = None) ->
     """
     # Read the compressed dictionary from the file
     try:
-        dict = expand_from_file(file_path)
+        dict = expand_from_file()
     except gzip.BadGzipFile:
         dict = _get_PO_numbers(token)
-        save_as_zip_file(file_path, dict)
+        save_as_zip_file(dict)
     except FileNotFoundError:
         raise
 
@@ -101,7 +102,7 @@ def update_PO_numbers(file_path: str, token: str, modified_after: str = None) ->
     return dict
 
 
-def save_as_zip_file(file_path: str, dict: dict):
+def save_as_zip_file(dict: dict, file_path: str = 'app/dict.json.gz'):
     """ Compress the dictionary and write to the file.
 
     Args:
@@ -113,7 +114,7 @@ def save_as_zip_file(file_path: str, dict: dict):
         file.write(json_data)
 
 
-def expand_from_file(file_path: str):
+def expand_from_file(file_path: str = 'app/dict.json.gz'):
     """ Read the compressed dictionary from the file.
 
     Args:
@@ -149,9 +150,3 @@ def extract_po(filename: str) -> str:
             if len(possible_po) < len(po):
                 po = possible_po
     return po
-
-
-if os.path.exists('app'):
-    file_path = 'app/dict.json.gz'  # Local path
-else:
-    file_path = 'C:\\uploader\\app\\dict.json.gz'  # Server path

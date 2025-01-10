@@ -13,21 +13,40 @@ pip3 install PyPDF2 pytesseract requests pypdfium2
 
 from datetime import datetime
 import os
+import sys
 import traceback
-import app.color_print as cp
 
-from PurchaseOrders import update_PO_numbers, file_path, extract_po
+import app.color_print as cp
+from app.PurchaseOrders import update_PO_numbers, extract_po
 import app.api as api
 import app.pdf as pdf
 from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT
+from dotenv import load_dotenv
+
+
+def getEnv():
+    if getattr(sys, 'frozen', False):
+        # Application is frozen (PyInstaller executable)
+        base_path = sys._MEIPASS  # Extracted directory
+    else:
+        base_path = os.path.dirname(__file__)  # Source directory
+
+    dotenv_path = os.path.join(base_path, '.env')
+    if os.path.exists(dotenv_path):
+        load_dotenv(dotenv_path)
+    else:
+        raise FileNotFoundError("The .env file was not found.")
+    username = os.environ.get('QUALER_USER')
+    password = os.environ.get('QUALER_PASS')
+    return username, password
+
 
 if not LIVEAPI:
     QUALER_ENDPOINT = QUALER_STAGING_ENDPOINT  # noqa: F811
     cp.yellow("Using staging API")
 
-token = api.login(QUALER_ENDPOINT,
-                  username=os.environ.get('QUALER_USER'),
-                  password=os.environ.get('QUALER_PASS'))
+username, password = getEnv()
+token = api.login(QUALER_ENDPOINT, username, password)
 
 total = 0
 
@@ -160,7 +179,7 @@ def process_file(filepath, qualer_parameters):
     # Check for PO in file name
     if filename.startswith("PO"):
         po = extract_po(filename)
-        po_dict = update_PO_numbers(file_path, token)
+        po_dict = update_PO_numbers(token)
         cp.white("PO found in file name: " + po)
         successSOs, failedSOs, new_filepath = upload_by_po(filepath, po, po_dict, QUALER_DOCUMENT_TYPE)
         if successSOs:

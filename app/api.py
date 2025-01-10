@@ -2,7 +2,6 @@
 
 import json
 from os import path
-from os import environ
 import traceback
 import requests
 import app.color_print as cp
@@ -30,17 +29,18 @@ def handle_exception(exception, response=None):
     traceback.print_exc()
 
 
-def login(endpoint, username=None, password=None):
-    if username is None:
-        username = environ.get('QUALER_USER')
-    if password is None:
-        password = environ.get('QUALER_PASS')
+def login(endpoint, username, password):
     endpoint = endpoint + '/login'
 
     header = {
         "Content-Type": "application/json",
         "Accept": "application/json"
     }
+
+    if not username or not password:
+        cp.red(ERROR_FLAG)
+        cp.red("Username or password not provided.")
+        raise SystemExit
 
     data = {
         "UserName": username,
@@ -54,9 +54,13 @@ def login(endpoint, username=None, password=None):
 
             try:
                 response = json.loads(r.text)
-                token = response['Token']
-                cp.green("Api-Token " + token)
-                return token
+                if token := response.get('Token'):
+                    cp.green("Api-Token " + token)
+                    return token
+                else:
+                    cp.red(ERROR_FLAG)
+                    cp.red("No token found in response")
+                    raise SystemExit
             except Exception as e:
                 handle_exception(e, r)
 

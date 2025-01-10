@@ -19,6 +19,11 @@ from app.archive import move_old_pdfs
 from app.config import CONFIG, DELETE_MODE, MAX_RUNTIME
 from upload import process_file
 from app.connectivity import check_connectivity
+import sys
+import os
+
+if hasattr(sys, '_MEIPASS'):
+    os.chdir(sys._MEIPASS)
 
 
 def process_pdfs(parameters):

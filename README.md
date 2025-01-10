@@ -123,7 +123,7 @@ Ensure you have the following installed:
    ```bash
    ./myenv/Scripts/activate
 
-   pyinstaller --onefile --clean --add-data "myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2_raw/version.json;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2/version.json;pypdfium2" --add-data "app/dict.json.gz;_internal" watcher.py
+   pyinstaller --onefile --clean --add-data "myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2_raw/version.json;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2/version.json;pypdfium2" --add-data ".env;." --add-data "app/dict.json.gz;app" watcher.py
    ```
    Creating a standalone executable ensures the program can run without requiring Python, dependencies, or credentials on the target system.
 
@@ -249,11 +249,15 @@ The `pdf_uploader` script automates the processing and categorization of scanned
 
 - **File structure**:
 
-  - `app/`: Core modules (e.g., `pdf.py`, `api.py`, `color_print.py`).
-  - `config.py`: Configuration settings.
+  - `app/`: Core modules:
+    - `config.py`: Configuration file
+    - `pdf.py`: Module for PDF processing
+    - `api.py`: Module for Qualer's API
+    - `PurchaseOrders.py`: Handles PO number management.
+    - `color_print.py`: Module for logging
+    - `archive.py`: Module for handling processed files.
   - `watcher.py`: Watches directories and triggers file processing.
-  - `PurchaseOrders.py`: Handles PO number management.
-  - `onefile.bash`: Script for creating a standalone executable.
+  - `upload.py`: The main file for file processing
 
 - **Virtual environment role**:
 
