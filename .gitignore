@@ -1,8 +1,7 @@
 .gitignore
-
-# Ignore Python cache
 __pycache__/
 myenv/
 dist/
 build/
 .env
+temp.*
