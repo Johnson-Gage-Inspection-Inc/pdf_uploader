@@ -65,4 +65,4 @@ def cyan(text):  # Prompts, user input
 
 def white(text):  # Default
     logging.debug(text)
-    print(text, 'WHITE')
+    color(text, 'WHITE')
