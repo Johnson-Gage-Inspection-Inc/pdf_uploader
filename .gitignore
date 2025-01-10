@@ -1,4 +1,4 @@
-.gitignore
+watcher.spec
 __pycache__/
 myenv/
 dist/
