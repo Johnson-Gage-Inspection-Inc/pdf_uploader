@@ -214,7 +214,7 @@ def extract(filepath):
     except Exception as e:
         cp.white(e)
     try:
-        if text == []:
+        if text == [] or all([not t for t in text]):
             cp.yellow(f"PyPDF2 failed. Using OCR to extract text from {filepath}.")
             text = tesseractOcr(filepath)
         else:
