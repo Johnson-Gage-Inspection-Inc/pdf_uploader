@@ -10,7 +10,7 @@ from app.config import LOG_FILE
 # CRITICAL: A serious error, indicating that the program itself may be unable to continue running.
 
 # Configure logging:
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', filename=LOG_FILE, filemode='a')
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', filename=LOG_FILE, filemode='a')
 
 colorama_installed = False
 
