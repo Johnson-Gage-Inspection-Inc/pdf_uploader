@@ -95,7 +95,7 @@ def update_PO_numbers(token: str, file_path: str = 'app/dict.json.gz', modified_
         response = api.get_service_orders(data, token)
         if len(response) > 0:
             dict = update_dict(dict, response)
-            save_as_zip_file(file_path, dict)  # Compress the updated dictionary and write to the file
+            save_as_zip_file(dict)  # Compress the updated dictionary and write to the file
             cp.white(f"Dictionary updated and saved to {file_path}.")
             return dict
     cp.white("No changes detected since the last update.")
