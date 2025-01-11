@@ -80,7 +80,11 @@ def upload_with_rename(filepath: str, serviceOrderId: str, QUALER_DOCUMENT_TYPE:
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(QUALER_ENDPOINT, token, serviceOrderId)  # get list of documents for the service order
     new_filepath = rename_file(filepath, doc_list) if file_name in doc_list else filepath  # if the file already exists in Qualer, rename it
-    uploadResult, new_filepath = api.upload(QUALER_ENDPOINT, token, new_filepath, serviceOrderId, QUALER_DOCUMENT_TYPE) if not DEBUG else cp.yellow("debug mode, no uploads")
+    try:
+        uploadResult, new_filepath = api.upload(QUALER_ENDPOINT, token, new_filepath, serviceOrderId, QUALER_DOCUMENT_TYPE) if not DEBUG else cp.yellow("debug mode, no uploads")
+    except FileExistsError:
+        cp.red(f"File exists in Qualer: {file_name}")
+        uploadResult = False, filepath
     return uploadResult, new_filepath
 
 
@@ -89,8 +93,11 @@ def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str
     try:
         if not os.path.isfile(filepath):  # See if filepath is valid
             return False, filepath
-        serviceOrderId = api.getServiceOrderId(QUALER_ENDPOINT, token, workorder)
-        return upload_with_rename(filepath, serviceOrderId, QUALER_DOCUMENT_TYPE)  # return uploadResult, new_filepath
+        if serviceOrderId := api.getServiceOrderId(token, workorder):
+            return upload_with_rename(filepath, serviceOrderId, QUALER_DOCUMENT_TYPE)  # return uploadResult, new_filepath
+        else:
+            cp.red(f"Service order not found for work order: {workorder}")
+            return False, filepath
     except FileNotFoundError as e:
         cp.red(f"Error: {filepath} not found.\n{e}")
         return False, filepath
@@ -120,6 +127,9 @@ def upload_by_po(filepath: str, po: str, dict: dict, QUALER_DOCUMENT_TYPE: str) 
                 failedSOs.append(serviceOrderId)
         except FileNotFoundError as e:
             cp.red(f"Error: {filepath} not found.\n{e}")
+            return [], serviceOrderIds, filepath
+        except FileExistsError:
+            cp.red(f"File exists in Qualer: {os.path.basename(filepath)}")
             return [], serviceOrderIds, filepath
         except Exception as e:
             cp.red(f"Error in fetch_SO_and_upload(): {e} \nFile: {filepath}")

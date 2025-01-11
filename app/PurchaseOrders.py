@@ -144,7 +144,7 @@ def extract_po(filename: str) -> str:
         if filename.startswith("PO" + delimiter):
             po = po.replace(".pdf", "").split(delimiter)[1]
             return po
-    if filename.startswith("PO"):
+    if filename.startswith("PO"):  # FIXME: Double check the logic, here, and make sure it's properly documented.
         for delimiter in possible_delimiters:
             possible_po = po.replace(".pdf", "").split(delimiter)[0].replace("PO", "")
             if len(possible_po) < len(po):

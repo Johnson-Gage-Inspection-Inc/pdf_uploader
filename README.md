@@ -123,7 +123,7 @@ Ensure you have the following installed:
    ```bash
    ./myenv/Scripts/activate
 
-   pyinstaller --onefile --clean --add-data "myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2_raw/version.json;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2/version.json;pypdfium2" --add-data ".env;." --add-data "app/dict.json.gz;app" watcher.py
+   pyinstaller --onefile --clean --add-data "myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2_raw/version.json;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2/version.json;pypdfium2" --add-data ".env;." --add-data "app/dict.json.gz;app"  --name PDF_Uploader watcher.py
    ```
    Creating a standalone executable ensures the program can run without requiring Python, dependencies, or credentials on the target system.
 
@@ -173,7 +173,7 @@ Choose one:
 #### Run executable:
 
 ```bash
-watcher.exe
+PDF_Uploader.exe
 ```
 
 ### Operating instructions

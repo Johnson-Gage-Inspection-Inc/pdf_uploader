@@ -87,13 +87,26 @@ def get_service_orders(data, token):
         return response
 
 
-def getServiceOrderId(endpoint, token, workOrderNumber):
+def getServiceOrderId(token: str, workOrderNumber: str) -> str:
+    """Get the service order ID for a work order number.
+
+    Args:
+        token (str): API token
+        workOrderNumber (str): Work order number
+
+    Returns:
+        str: _description_
+    """
     cp.white("Fetching service order id for work order: " + workOrderNumber + "...")
     data = {"workOrderNumber": workOrderNumber}
     try:
         response = get_service_orders(data, token)
         # comes as a list, so return ServiceOrderId from first element
-        return response[0]['ServiceOrderId']
+        if len(response) == 0:
+            cp.red(ERROR_FLAG)
+            cp.red(f"No service order found for work order: {workOrderNumber}")
+            return False
+        return response[0]['ServiceOrderId']  # Exception has occurred: IndexError (list index out of range)
     except Exception as e:
         handle_exception(e, response)
 
@@ -159,6 +172,11 @@ def upload(endpoint, token, filepath, serviceOrderId, qualertype):
 
 # Function to get a list of documents for a service order
 def get_service_order_document_list(endpoint, token, ServiceOrderId):
+    if not ServiceOrderId:
+        cp.red(ERROR_FLAG)
+        cp.red("ServiceOrderId not provided.")
+        raise SystemExit
+
     cp.white(f"Fetching document list for service order: https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}...")
 
     headers = {
@@ -168,13 +186,13 @@ def get_service_order_document_list(endpoint, token, ServiceOrderId):
 
     endpoint = endpoint + "/service/workorders/documents/list"
 
-    data = {
+    params = {
         "from": "1900-01-01T00:00:00",
         "to": "2500-01-01T00:00:00",
         "serviceOrderId": ServiceOrderId
     }
 
-    with requests.get(endpoint, params=data, headers=headers) as r:
+    with requests.get(endpoint, params=params, headers=headers) as r:
         if r.status_code != 200:
             handle_error(r)
 
