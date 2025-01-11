@@ -112,6 +112,9 @@ def get_visual_orientation(image):
 
 
 def rotate_pdf(filepath, degrees=180):
+    file_name = os.path.basename(filepath)
+    cp.yellow(f"Orientation: {degrees}° | {file_name}")
+    cp.white("Rotating PDF file... " + file_name)
     try:
         if degrees not in [0, 90, 180, 270]:                                    # Check for valid degrees
             raise ValueError('degrees must be 0, 90, 180, or 270.')             # Raise error if invalid degrees
@@ -124,8 +127,8 @@ def rotate_pdf(filepath, degrees=180):
                 page.rotate(degrees)                                            # Rotate the page
                 writer.add_page(page)                                           # Add the rotated page to the writer object
             with open_with_debug(filepath, 'wb') as output_file:                # Prepare a new PDF file with the rotated pages
-                writer.write(output_file)                                       # Write the rotated pages to the new file
-        cp.green("PDF rotation complete.")
+                writer.write(output_file)
+        cp.green(f'"{file_name}" rotated successfully.')
         return True
     except Exception:
         print_exc()
@@ -238,8 +241,6 @@ def create_child_pdf(filepath, pg_nums, output_path):
                 pdf_writer.write(output)
     except Exception as e:
         cp.red(e)
-    finally:
-        pdf_file.close()
 
 
 # extract work orders from pdf, create a set of pages for each work order, append pages with no work order to the previous work order.
@@ -292,7 +293,7 @@ def move_file(filepath, output_dir):
             cp.green(f"Moved file to {new_filepath}.")
             return new_filepath
         except PermissionError as e:
-            cp.red(e)
+            cp.yellow(e)
             attempt += 1
             sleep(1)  # Wait 1 second before retrying
         except FileExistsError:

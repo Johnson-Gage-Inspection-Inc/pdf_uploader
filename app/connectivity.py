@@ -2,7 +2,7 @@
 import subprocess
 from os.path import exists
 from app.config import SHAREPOINT_PATH
-from app.color_print import yellow as warn
+from app.color_print import magenta as warn
 from time import sleep
 
 

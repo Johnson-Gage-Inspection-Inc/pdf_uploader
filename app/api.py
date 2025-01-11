@@ -22,9 +22,11 @@ def handle_error(response):
 
 def handle_exception(exception, response=None):
     cp.red(ERROR_FLAG)
-    if response is not None:
+    if isinstance(response, requests.Response):
         cp.red(f"STATUS CODE: {response.status_code}")
         cp.red(f"RESPONSE: {response.text}")
+    elif response:
+        cp.red(f"Invalid response passed: {response}")
     cp.red(f"EXCEPTION: {exception}")
     traceback.print_exc()
 
@@ -127,30 +129,37 @@ def upload(endpoint, token, filepath, serviceOrderId, qualertype):
                 'model.reportType': qualertype,
             }
             if attempts > 0:
-                cp.yellow("Retrying upload...")
-            with requests.post(endpoint, params=requestData, headers=headers, files=files) as r:
-                if r.status_code == 200:
-                    cp.green("Upload successful!")
-                    return True, filepath
+                cp.white("Retrying upload...")
+            try:
+                r = requests.post(endpoint, params=requestData, headers=headers, files=files)
 
-                try:
-                    response_data = json.loads(r.text)
-                    error_message = response_data.get("Message", "")
-                except Exception as e:
-                    handle_exception(e, r)
+            except requests.exceptions.ReadTimeout as e:
+                cp.yellow(e)
+                attempts += 1
+                continue
 
-                if r.status_code == 400 and error_message == "This document version is locked and cannot be overwritten.":
-                    cp.yellow(error_message)
-                    attempts += 1
-                    # No return, so that we can try again after the file is renamed.
-                else:  # if r.status_code != 200
-                    handle_error(r)
-                    return False, filepath
+            if r.status_code == 200:
+                cp.green("Upload successful!")
+                return True, filepath
+
+            try:
+                response_data = json.loads(r.text)
+                error_message = response_data.get("Message", "")
+            except Exception as e:
+                handle_exception(e, r)
+
+            if r.status_code == 400 and error_message == "This document version is locked and cannot be overwritten.":
+                cp.yellow(error_message)
+                attempts += 1
+                # No return, so that we can try again after the file is renamed.
+            else:  # if r.status_code != 200
+                handle_error(r)
+                return False, filepath
 
 
 # Function to get a list of documents for a service order
 def get_service_order_document_list(endpoint, token, ServiceOrderId):
-    cp.white(f"Fetching document list for service order: {ServiceOrderId}...")
+    cp.white(f"Fetching document list for service order: https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}...")
 
     headers = {
         'Accept': 'application/json',
@@ -174,7 +183,7 @@ def get_service_order_document_list(endpoint, token, ServiceOrderId):
             file_names = []
             for item in data:
                 file_names.append(item["FileName"])
-            cp.white(f"Found {len(file_names)} documents for service order: {ServiceOrderId}")
+            cp.white(f"Found {len(file_names)} documents for service order: https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}")
             return file_names
         except Exception as e:
             handle_exception(e, r)

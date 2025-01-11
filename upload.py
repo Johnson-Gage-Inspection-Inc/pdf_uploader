@@ -15,7 +15,7 @@ from datetime import datetime
 import os
 import sys
 import traceback
-
+from typing import Tuple
 import app.color_print as cp
 from app.PurchaseOrders import update_PO_numbers, extract_po
 import app.api as api
@@ -52,14 +52,14 @@ total = 0
 
 
 # Rename File
-def rename_file(filepath, doc_list):
+def rename_file(filepath: str, doc_list: list) -> str:
     try:
-        cp.white("File already exists in Qualer. Renaming file...")
+        cp.yellow("File already exists in Qualer. Renaming file...")
         file_name = os.path.basename(filepath)
         attempts = 10
         did_rename = False
         new_filepath = filepath
-        while not did_rename and attempts > 0:                                         # try to rename the file up to 10 times
+        while not did_rename and attempts > 0:                                          # Try to rename the file up to 10 times
             new_filepath = pdf.increment_filename(new_filepath)                         # Increment the filename
             new_filename = os.path.basename(new_filepath)
             if new_filename not in doc_list:                                            # If the file does not exist in Qualer, upload it
@@ -76,7 +76,7 @@ def rename_file(filepath, doc_list):
 
 
 # Upload file to Qualer endpoint, and resolve name conflicts
-def upload_with_rename(filepath, serviceOrderId, QUALER_DOCUMENT_TYPE):
+def upload_with_rename(filepath: str, serviceOrderId: str, QUALER_DOCUMENT_TYPE: str) -> Tuple[bool, str]:
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(QUALER_ENDPOINT, token, serviceOrderId)  # get list of documents for the service order
     new_filepath = rename_file(filepath, doc_list) if file_name in doc_list else filepath  # if the file already exists in Qualer, rename it
@@ -85,7 +85,7 @@ def upload_with_rename(filepath, serviceOrderId, QUALER_DOCUMENT_TYPE):
 
 
 # Get service order ID and upload file to Qualer endpoint
-def fetch_SO_and_upload(workorder, filepath, QUALER_DOCUMENT_TYPE):
+def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str):
     try:
         if not os.path.isfile(filepath):  # See if filepath is valid
             return False, filepath
@@ -101,7 +101,7 @@ def fetch_SO_and_upload(workorder, filepath, QUALER_DOCUMENT_TYPE):
 
 
 # Get service order ID and upload file to Qualer endpoint
-def upload_by_po(filepath, po, dict, QUALER_DOCUMENT_TYPE):
+def upload_by_po(filepath: str, po: str, dict: dict, QUALER_DOCUMENT_TYPE: str) -> Tuple[list, list, str]:
     if po not in dict:
         cp.yellow(f"PO# {po} not found in Qualer.")
         return [], [], filepath
@@ -128,20 +128,16 @@ def upload_by_po(filepath, po, dict, QUALER_DOCUMENT_TYPE):
     return successSOs, failedSOs, filepath
 
 
-def reorient_pdf_for_workorders(filepath, REJECT_DIR):
+def reorient_pdf_for_workorders(filepath: str, REJECT_DIR: str) -> list:
     file_name = os.path.basename(filepath)
     try:
         cp.white("Checking orientation of PDF file..." + file_name)
         orientation = pdf.get_pdf_orientation(filepath)  # get orientation of PDF file
         cp.white(f"Orientation: {orientation} | {file_name}")
         if orientation in [90, 180, 270]:
-            cp.yellow(f"Orientation: {orientation} | {file_name}")
-            cp.white("Rotating PDF file... " + file_name)
-            did_rotate = pdf.rotate_pdf(filepath, orientation)  # rotate PDF file
-            if did_rotate:
-                cp.green(file_name + " file rotated successfully.")
-            workorders = pdf.workorders(filepath)  # parse work order numbers from PDF file name/body
-            if workorders:
+            pdf.rotate_pdf(filepath, orientation)  # rotate PDF file
+
+            if workorders := pdf.workorders(filepath):  # parse work order numbers from PDF file name/body
                 return workorders
             else:  # If there are still no work orders, skip the file
                 cp.yellow(f"no work order found in {file_name}, file skipped")
@@ -164,7 +160,10 @@ def reorient_pdf_for_workorders(filepath, REJECT_DIR):
 
 
 # Main function
-def process_file(filepath, qualer_parameters):
+def process_file(filepath: str, qualer_parameters: tuple):
+    if not os.path.isfile(filepath):
+        raise FileNotFoundError(f"File not found: {filepath}")
+
     cp.blue(f"Processing file: {filepath}")
     # unpack parameters
     INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters

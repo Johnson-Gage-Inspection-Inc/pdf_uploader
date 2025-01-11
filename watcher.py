@@ -27,7 +27,6 @@ if hasattr(sys, '_MEIPASS'):
 
 
 def process_pdfs(parameters):
-    cp.white(f'Checking for PDF files in "{parameters[0]}"...')
     for filepath in pdf.next(parameters[0]):
         process_file(filepath, parameters)
 
@@ -37,21 +36,48 @@ class PDFFileHandler(FileSystemEventHandler):
         super().__init__()
         self.input_dir = input_dir
         self.parameters = parameters
+        self.check_interval = .1
+        self.stability_duration = 1  # seconds
 
     # Called when a file is created in the input directory
     def on_created(self, event):
-        time.sleep(3)  # Wait for the file to finish writing
-        process_pdfs(self.parameters)
+        if self.wait_for_file_stability(event.src_path):
+            process_pdfs(self.parameters)
 
     # Called when a file is moved into the input directory or renamed
     def on_moved(self, event):
-        time.sleep(1)  # Wait for the file to finish writing
-        process_pdfs(self.parameters)
+        if self.wait_for_file_stability(event.src_path):
+            process_pdfs(self.parameters)
+
+    def wait_for_file_stability(self, file_path):
+        """
+        Wait until the file is no longer being written to.
+        """
+        previous_size = -1
+        stable_time = 0
+
+        while True:
+            try:
+                current_size = os.path.getsize(file_path)
+                if current_size == previous_size:
+                    stable_time += self.check_interval
+                else:
+                    stable_time = 0
+
+                if stable_time >= self.stability_duration:
+                    cp.white(f"File is stable: {file_path}")
+                    return True
+
+                previous_size = current_size
+                time.sleep(self.check_interval)
+            except FileNotFoundError:
+                cp.red(f"File not found: {file_path}")
+                return False
 
 
 # Watch a directory for new PDF files
 def watch_directory(input_dir, parameters):
-    cp.blue("Watching for PDF files in \"" + input_dir + "\"...")
+    cp.blue(f'Watching for PDF files in "{input_dir}"...')
     event_handler = PDFFileHandler(input_dir, parameters)
     observer = Observer()
     observer.schedule(event_handler, input_dir, recursive=False)

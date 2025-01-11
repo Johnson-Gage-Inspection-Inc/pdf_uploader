@@ -54,12 +54,11 @@ def blue(text):  # Informational
 
 
 def magenta(text):  # special or significant information, such as system status updates or important notices.
-    logging.debug(text)
+    logging.info(text)
     color(text, 'MAGENTA')
 
 
 def cyan(text):  # Prompts, user input
-    logging.debug(text)
     color(text, 'CYAN')
 
 
