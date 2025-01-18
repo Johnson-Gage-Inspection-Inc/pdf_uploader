@@ -181,7 +181,9 @@ Please note that this table is not exhaustive, but it highlights some of the key
 ---
 ##  Getting Started
 
-If you're just here to download and use the program, please download the latest release from [https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/releases/latest].  The instructions from this section are about building from source. 
+If you're just here to download and use the program, you may simply download the [latest release](https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/releases/latest).
+
+The following are instructions for building the program from source.
 
 ### Prerequisites
 
