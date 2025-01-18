@@ -80,7 +80,8 @@ Please note that this table is not exhaustive, but it highlights some of the key
     ├── image.png
     ├── requirements.txt
     ├── upload.py
-    └── watcher.py
+    ├── watcher.py
+    └── .env  # You must create this
 ```
 
 
