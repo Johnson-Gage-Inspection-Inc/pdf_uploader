@@ -32,9 +32,7 @@
     - [Installation](#installation)
     - [Configuration](#configuration)
 - [Usage](#usage)
-    - [Starting the program:](#starting-the-program)
-        - [Run with Python:](#run-with-python)
-        - [Run executable:](#run-executable)
+    - [Starting the program](#starting-the-program)
     - [Operation Overview](#operation-overview)
 - [Contributing](#contributing)
 - [Acknowledgments](#acknowledgments)
@@ -49,8 +47,8 @@ The pdfuploader project is designed to simplify the process of uploading scanned
 
 ##  Features
 
-|      | Feature         | Summary       |
-| :--- | :---:           | :---          |
+| Feature         | Summary       |
+| :--- | :---:           | 
 | **PDF Correction** |  *   Backup OCR if not provided by the scanner.  *   Ensure PDFs are upright by detecting and correcting orientation.  *   Split multi-page PDFs into separate files when a new work order number is detected.|
 | **Automatic Triggers** |  *   Automatically watch directories for new PDFs.  *   Identify document type based on source, contents, or filename.  *   Archive or delete processed files based on settings.  *   Handle file renaming to avoid conflicts.|
 | **Integration** |  *   Upload PDFs to the Qualer API with detailed logging.  *   Retry and resolve naming conflicts during uploads. |
@@ -211,32 +209,32 @@ Install pdf_uploader using one of the following methods:
   ```
 3. Prepare a virtual environment
 
-  + Create a virtual environment:
+    1. Create a virtual environment:
 
-    ```bash
-    python -m venv myenv
-    ```
+        ```bash
+        python -m venv myenv
+        ```
 
-  + Activate the virtual environment:
+    2. Activate the virtual environment:
 
-    ```bash
-    source myenv/bin/activate  # Linux/Mac
-    myenv\Scripts\activate  # Windows
-    ```
+        ```bash
+        source myenv/bin/activate  # Linux/Mac
+        myenv\Scripts\activate  # Windows
+        ```
       
-  + Install the project dependencies:
+    3. Install the project dependencies:
 
-    **Using `pip`** &nbsp; [<img align="center" src="https://img.shields.io/badge/Pip-3776AB.svg?style={badge_style}&logo=pypi&logoColor=white" />](https://pypi.org/project/pip/)
+        **Using `pip`** &nbsp; [<img align="center" src="https://img.shields.io/badge/Pip-3776AB.svg?style={badge_style}&logo=pypi&logoColor=white" />](https://pypi.org/project/pip/)
 
-    ```sh
-    pip install -r requirements.txt
-    ```
+        ```sh
+        pip install -r requirements.txt
+        ```
 
-  + (Optional) Verify the setup:
+    4. (Optional) Verify the setup:
 
-    ```sh
-    python -m pip list
-    ```
+        ```sh
+        python -m pip list
+        ```
 
 4. Configure your project
   See [configuration](#configuration).
@@ -302,40 +300,35 @@ Other settings are configured in <a href='https://github.com/Johnson-Gage-Inspec
     </details>
 
 
-5. (Optional) Compile a standalone executable using `pyinstaller`:
-
-   ```sh
-   ./myenv/Scripts/activate
-
-   pyinstaller --onefile --clean --add-data "myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2_raw/version.json;pypdfium2_raw" --add-data "myenv/Lib/site-packages/pypdfium2/version.json;pypdfium2" --add-data ".env;." --add-data "app/dict.json.gz;app"  --name PDF_Uploader watcher.py
-   ```
-   Creating a standalone executable ensures the program can run without requiring Python, dependencies, or credentials on the target system.  Alternatively, you can simply download the latest release from [https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/releases/latest], precompiled.
-
-
 ---
 
 ## Usage
 
-### Starting the program:
+### Starting the program
 
 Choose one:
-  #### Run with Python:
+
++ Run with Python:
 
     1. Activate the virtual environment:
-      ```sh
-      source myenv/bin/activate # Linux/Mac
-      ```
-      or
-      ```sh
-      myenv\Scripts\activate     # Windows
-      ```
+    
+        ```sh
+        source myenv/bin/activate # Linux/Mac
+        ```
+    
+        or
+      
+        ```sh
+        myenv\Scripts\activate     # Windows
+        ```
+    
     2. Run pdf_uploader using the following command:
+    
+          ```sh
+          python watcher.py
+          ```
 
-      ```sh
-      python watcher.py
-      ```
-
-  #### Run executable:
++ Run executable:
 
     ```sh
     PDF_Uploader.exe
