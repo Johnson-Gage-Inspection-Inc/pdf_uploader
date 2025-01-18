@@ -89,55 +89,55 @@ Please note that this table is not exhaustive, but it highlights some of the key
 ```
 
 
-###  Project Index
+### Project Index
 <details open>
   <summary><b><code>pdf_uploader/</code></b></summary>
-  <details> <!-- __root__ Submodule -->
+  <details>
     <summary><b>__root__</b></summary>
     <blockquote>
       <table>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/upload.py'>upload.py</a></b></td>
-        <td>- The main file processing tool script, to upload scanned documents to a Qualer endpoint(s) based on the presence of work orders or PO numbers within the file name or body<br>- The script handles various scenarios, including successful uploads, failed uploads, and file renaming</td>
+        <td>- The main file processing tool script, to upload scanned documents to a Qualer endpoint(s) based on the presence of work orders or PO numbers within the file name or body.<br>- The script handles various scenarios, including successful uploads, failed uploads, and file renaming.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/watcher.py'>watcher.py</a></b></td>
-        <td>- Monitors directories for new PDF files and tells `upload.py` to process them.<br>- The script uses a watchdog library to track changes in the input directory, waiting for files to become stable before processing them<br>- It also checks connectivity with Qualer periodically and exits if the maximum runtime is exceeded.</td>
+        <td>- Monitors directories for new PDF files and tells `upload.py` to process them.<br>- The script uses a watchdog library to track changes in the input directory, waiting for files to become stable before processing them.<br>- It also checks connectivity with Qualer periodically and exits if the maximum runtime is exceeded.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/requirements.txt'>requirements.txt</a></b></td>
-        <td>- The file provides version numbers for various dependencies, including Altigraph, Certifi, Charset-Normalizer, Colorama, Idna, NumPy, OpenCV-Python, Packaging, PdF2Imagick, PDF, Pillow, Pip, PyInstaller, PyMPDF, PyPDF2, PyPillow, Pytesseract, Python-DevTools, PyWin32, and Requests<br>- The file ensures compatibility across different environments and platforms for the project's overall architecture.</td>
+        <td>- Lists the dependencies required for the project, ensuring compatibility across different environments and platforms.</td>
       </tr>
       </table>
     </blockquote>
   </details>
-  <details> <!-- app Submodule -->
+  <details>
     <summary><b>app</b></summary>
     <blockquote>
       <table>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/connectivity.py'>connectivity.py</a></b></td>
-        <td>- Verify connectivity across multiple systems<br>- Ensures internet availability by pinging Google's address and checks accessibility of SharePoint and Qualer servers<br>- It also verifies the existence of the SharePoint directory</td>
+        <td>- Ensures internet availability by pinging Google's address.<br>- Checks accessibility of SharePoint and Qualer servers.<br>- Verifies the existence of the SharePoint directory.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/archive.py'>archive.py</a></b></td>
-        <td>- Archives files older than today by compressing them into a zip folder<br>- Scans the specified folder for PDF files, identifies those created before the current date, and moves or deletes them based on user preference<br>- It then compresses the identified files into an archive, which is stored in the same folder with a "Archive.zip" extension.</td>
+        <td>- Archives files older than today by compressing them into a zip folder.<br>- Scans the specified folder for PDF files, identifies those created before the current date, and moves or deletes them based on user preference.<br>- Compresses the identified files into an archive.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/color_print.py'>color_print.py</a></b></td>
-        <td>- **Log Colorization**: Enables colorized logging across the project by integrating with the `colorama` library<br>- It defines a set of functions to log messages in different colors, including headers, errors, successes, warnings, and informational messages, while also handling installation checks for `colorama`<br>- This facilitates visually distinct logging output, enhancing the overall user experience.</td>
+        <td>- Enables colorized logging across the project by integrating with the `colorama` library.<br>- Defines functions to log messages in different colors, including headers, errors, successes, warnings, and informational messages.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/api.py'>api.py</a></b></td>
-        <td>- **Overview**: The central API gateway for a Qualer integration, managing service orders and document uploads by providing functions for login, retrieving service order data, uploading files, and fetching document lists<br>- It handles errors and exceptions, ensuring a robust user experience.</td>
+        <td>- Serves as the central API gateway for a Qualer integration project.<br>- Provides functions for login, retrieving service order data, uploading files, and fetching document lists.<br>- Handles errors and exceptions.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/pdf.py'>pdf.py</a></b></td>
-        <td>Detects and Corrects PDF Orientation: Uses OCR and image processing to determine and adjust the rotation of PDFs based on text and visual features.<br>- Extracts and Processes PDF Text: Retrieves text from PDFs using PyPDF2 and Tesseract OCR, with a fallback for image-based PDFs.<br>- Manages PDF Pages and Files: Splits PDFs into pages, creates new PDFs from selected pages, renames files to avoid conflicts, and moves files based on processing results.</td>
+        <td>- A module for PDF processing.<br>- Includes functions for extracting text, rotating PDFs, and handling work orders.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/config.py'>config.py</a></b></td>
-        <td>- Configures the PDF uploader settings for the project<br>- It sets up variables such as API endpoints, directory paths, and upload settings to manage PDF files<br>- The configuration allows for live or staging API usage, file uploads or skips, and deletion or archiving of processed files<br>- It also specifies document types for Qualer API uploads.<br><br>
+        <td>- Configures the PDF uploader settings for the project.<br>- Sets up variables such as API endpoints, directory paths, and upload settings to manage PDF files.<br>- Allows for live or staging API usage, file uploads or skips, and deletion or archiving of processed files.<br>- Specifies document types for Qualer API uploads.<br><br>
 <b>Variables:</b>
 <details>
 
@@ -175,7 +175,7 @@ Please note that this table is not exhaustive, but it highlights some of the key
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/PurchaseOrders.py'>PurchaseOrders.py</a></b></td>
-        <td>- Maintains a dictionary of purchase orders (POs) and their corresponding service order IDs<br>- It retrieves data from an API, updates the dictionary with new PO numbers, and saves it to a compressed JSON file<br>- The code achieves this by utilizing an API token to fetch service orders, updating the dictionary based on the response, and compressing the updated dictionary for storage.</td>
+        <td>- Manages a dictionary of purchase orders (POs) and their corresponding service order IDs.<br>- Retrieves data from an API, updates the dictionary with new PO numbers, and saves it to a compressed JSON file.</td>
       </tr>
       </table>
     </blockquote>
@@ -453,3 +453,4 @@ The `pdf_uploader` script automates the processing and categorization of scanned
 - Johnny's Brother, Jeff Hall
 
 ---
+````
