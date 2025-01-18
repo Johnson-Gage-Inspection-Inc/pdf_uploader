@@ -51,12 +51,9 @@ The pdfuploader project is designed to simplify the process of uploading scanned
 
 |      | Feature         | Summary       |
 | :--- | :---:           | :---          |
-
 | **PDF Correction** |  *   Backup OCR if not provided by the scanner.  *   Ensure PDFs are upright by detecting and correcting orientation.  *   Split multi-page PDFs into separate files when a new work order number is detected.|
-
 | **Automatic Triggers** |  *   Automatically watch directories for new PDFs.  *   Identify document type based on source, contents, or filename.  *   Archive or delete processed files based on settings.  *   Handle file renaming to avoid conflicts.|
 | **Integration** |  *   Upload PDFs to the Qualer API with detailed logging.  *   Retry and resolve naming conflicts during uploads. |
-
 | ⚙️ **Architecture** |  *   Modular design with separate modules for API gateway, file processing, and configuration.  *   Utilizes a centralized `config.py` file for configuration data.  *   Employs an error handling system using `cp.red`.  *   Supports live or staging API usage, file uploads or skips, and deletion or archiving of processed files. |
 | 📚 **Documentation** |  *   Provides detailed documentation for each module, including script instructions, functions, and error handling mechanisms.  *   Includes a comprehensive overview of the project's architecture and functionality.  *   Offers concise response guidelines for user interactions.  *   Utilizes Markdown formatting for easy readability. |
 | 📊 **Data Processing** |  *   Employs data processing techniques to extract relevant pages from PDFs, including `extract`, `workorders`, and `create_child_pdf` functions.  *   Supports file rename errors using the `try_rename` function.  *   Utilizes an API token to fetch service orders and update a dictionary of purchase orders (POs).  *   Compresses data for storage in compressed JSON files. |
