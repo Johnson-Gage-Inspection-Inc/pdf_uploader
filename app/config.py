@@ -40,8 +40,11 @@ tesseract_cmd_path = r'C:/Program Files/Tesseract-OCR/tesseract.exe'  # Path to 
 
 # Get the user's home directory
 user_folder = path.expanduser("~")  # e.g. 'C:\Users\JohnDoe'
-SHAREPOINT_PATH = user_folder + r'/OneDrive - Johnson Gage and Inspection, Inc/Shared with Everyone/access/'
-LOG_FILE = SHAREPOINT_PATH + r'Logs/pdfUploader.log'
+SHAREPOINT_PATH = (
+    user_folder
+    + "/Johnson Gage and Inspection, Inc/Johnson Gage and Inspection, Inc. - Documents/Sysop's OneDrive/Shared with Everyone/access/"
+)
+LOG_FILE = SHAREPOINT_PATH + r"Logs/pdfUploader.log"
 
 # Dictionary of directories to watch:
 CONFIG = [
