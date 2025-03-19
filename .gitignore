@@ -1,6 +1,6 @@
 watcher.spec
 __pycache__/
-myenv/
+venv/
 dist/
 build/
 .env
