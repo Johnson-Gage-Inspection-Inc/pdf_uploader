@@ -26,14 +26,14 @@
 - [Overview](#overview)
 - [Features](#features)
 - [Project Structure](#project-structure)
-    - [Project Index](#project-index)
+  - [Project Index](#project-index)
 - [Getting Started](#getting-started)
-    - [Prerequisites](#prerequisites)
-    - [Installation](#installation)
-    - [Configuration](#configuration)
+  - [Prerequisites](#prerequisites)
+  - [Installation](#installation)
+  - [Configuration](#configuration)
 - [Usage](#usage)
-    - [Starting the program](#starting-the-program)
-    - [Operation Overview](#operation-overview)
+  - [Starting the program](#starting-the-program)
+  - [Operation Overview](#operation-overview)
 - [Contributing](#contributing)
 - [Acknowledgments](#acknowledgments)
 
@@ -246,12 +246,7 @@ Install pdf_uploader using one of the following methods:
   With the virtual environment still active, you can compile a binary using `pyinstaller`
 
   ```
-  pyinstaller --onefile --clean \
-    --add-data "myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll;pypdfium2_raw" \
-    --add-data "myenv/Lib/site-packages/pypdfium2_raw/version.json;pypdfium2_raw" \
-    --add-data "myenv/Lib/site-packages/pypdfium2/version.json;pypdfium2" \
-    --add-data ".env;." --add-data "app/dict.json.gz;app" \
-    --name PDF_Uploader watcher.py
+  pyinstaller PDF_Uploader.spec
   ```
   Creating a standalone executable ensures the program can run without requiring Python, dependencies, or credentials on the target system.  Alternatively, you can simply download the latest release from [https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/releases/latest], precompiled.
 
