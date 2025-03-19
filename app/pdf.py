@@ -301,7 +301,7 @@ def move_file(filepath, output_dir):
                 print("Incrementing filename...", end="")
             else:
                 print(".", end="")
-            cp.white()
+            print()
             new_filepath = increment_filename(new_filepath)
             attempt += 1
         except FileNotFoundError as e:  # This probably means the file was already moved by another process (Perhaps another instance of this script is running?)

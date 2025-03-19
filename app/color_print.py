@@ -21,40 +21,40 @@ def color(text, color):
     print(Fore.__dict__[color.upper()] + str(text) + Style.RESET_ALL)
 
 
-def black(text):  # Headers
+def black(text=""):  # Headers
     logging.debug(text)
     color(text, 'BLACK')
 
 
-def red(text):  # Errors and exceptions
+def red(text=""):  # Errors and exceptions
     logging.error(text)
     color(text, 'RED')
 
 
-def green(text):  # Successful
+def green(text=""):  # Successful
     logging.debug(text)
     color(text, 'GREEN')
 
 
-def yellow(text):  # Warnings, notices, alerts
+def yellow(text=""):  # Warnings, notices, alerts
     logging.warning(text)
     color(text, 'YELLOW')
 
 
-def blue(text):  # Informational
+def blue(text=""):  # Informational
     logging.info(text)
     color(text, 'BLUE')
 
 
-def magenta(text):  # special or significant information, such as system status updates or important notices.
+def magenta(text=""):  # special or significant information, such as system status updates or important notices.
     logging.info(text)
     color(text, 'MAGENTA')
 
 
-def cyan(text):  # Prompts, user input
+def cyan(text=""):  # Prompts, user input
     color(text, 'CYAN')
 
 
-def white(text):  # Default
+def white(text=""):  # Default
     logging.debug(text)
     color(text, 'WHITE')
