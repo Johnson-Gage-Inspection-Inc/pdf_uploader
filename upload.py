@@ -24,31 +24,27 @@ from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT
 from dotenv import load_dotenv
 
 
-def getEnv():
-    if getattr(sys, "frozen", False):
-        # Application is frozen (PyInstaller executable)
-        base_path = sys._MEIPASS  # Extracted directory
-    else:
-        base_path = os.path.dirname(__file__)  # Source directory
+def get_credentials():
+    """Retrieve credentials from environment variables."""
+    username = os.environ.get("QUALER_EMAIL")
+    password = os.environ.get("QUALER_PASSWORD")
+    return (username, password) if username and password else None
 
+
+def getEnv():
+    # Try to load from environment variables first (useful for CI/CD)
+    if creds := get_credentials():
+        return creds
+
+    # If not found, try loading from .env file
+    base_path = sys._MEIPASS if getattr(sys, "frozen", False) else os.path.dirname(__file__)
     dotenv_path = os.path.join(base_path, ".env")
     if os.path.exists(dotenv_path):
         load_dotenv(dotenv_path)
-    else:
-        raise FileNotFoundError("The .env file was not found.")
-    username = os.environ.get("QUALER_EMAIL")
-    password = os.environ.get("QUALER_PASSWORD")
-    return username, password
+        if creds := get_credentials():
+            return creds
 
-
-if not LIVEAPI:
-    QUALER_ENDPOINT = QUALER_STAGING_ENDPOINT  # noqa: F811
-    cp.yellow("Using staging API")
-
-username, password = getEnv()
-token = api.login(QUALER_ENDPOINT, username, password)
-
-total = 0
+    raise ValueError("Credentials not found in environment or .env file")
 
 
 # Rename File
@@ -340,3 +336,13 @@ def process_file(filepath: str, qualer_parameters: tuple):
     except Exception as e:
         cp.red(e)
         cp.red("Failed to remove file: " + filepath)
+
+
+if not LIVEAPI:
+    QUALER_ENDPOINT = QUALER_STAGING_ENDPOINT  # noqa: F811
+    cp.yellow("Using staging API")
+
+username, password = getEnv()
+token = api.login(QUALER_ENDPOINT, username, password)
+
+total = 0

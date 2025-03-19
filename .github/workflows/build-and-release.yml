@@ -25,6 +25,8 @@ jobs:
           .\myenv\Scripts\activate
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+          echo "QUALER_EMAIL=${{ secrets.QUALER_EMAIL }}" > .env
+          echo "QUALER_PASSWORD=${{ secrets.QUALER_PASSWORD }}" >> .env
           pyinstaller PDF_Uploader.spec
 
       - name: Upload build artifacts
