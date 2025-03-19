@@ -212,17 +212,20 @@ Install pdf_uploader using one of the following methods:
   ```
 3. Prepare a virtual environment
 
-    1. Create a virtual environment:
+    1. Create a virtual environment, with python 3.10
 
-        ```bash
-        python -m venv myenv
+        ```sh
+        py -3.10 -m venv myenv
         ```
 
     2. Activate the virtual environment:
 
+        ```sh
+        myenv\Scripts\activate  # Windows
+        ```
+
         ```bash
         source myenv/bin/activate  # Linux/Mac
-        myenv\Scripts\activate  # Windows
         ```
 
     3. Install the project dependencies:
@@ -242,7 +245,7 @@ Install pdf_uploader using one of the following methods:
 4. Configure your project
   See [configuration](#configuration).
 
-5. (Optional) Compile a standalone executable using `pyinstaller`:
+1. (Optional) Compile a standalone executable using `pyinstaller`:
   With the virtual environment still active, you can compile a binary using `pyinstaller`
 
   ```
