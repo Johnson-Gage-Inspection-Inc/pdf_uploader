@@ -16,45 +16,45 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 init()  # Initialize colorama
 
 
-def color(text, color):
+def _color(text, color):
     assert color in Fore.__dict__, f"Invalid color: {color}"
     print(Fore.__dict__[color.upper()] + str(text) + Style.RESET_ALL)
 
 
 def black(text=""):  # Headers
     logging.debug(text)
-    color(text, 'BLACK')
+    _color(text, 'BLACK')
 
 
 def red(text=""):  # Errors and exceptions
     logging.error(text)
-    color(text, 'RED')
+    _color(text, 'RED')
 
 
 def green(text=""):  # Successful
     logging.debug(text)
-    color(text, 'GREEN')
+    _color(text, 'GREEN')
 
 
 def yellow(text=""):  # Warnings, notices, alerts
     logging.warning(text)
-    color(text, 'YELLOW')
+    _color(text, 'YELLOW')
 
 
 def blue(text=""):  # Informational
     logging.info(text)
-    color(text, 'BLUE')
+    _color(text, 'BLUE')
 
 
 def magenta(text=""):  # special or significant information, such as system status updates or important notices.
     logging.info(text)
-    color(text, 'MAGENTA')
+    _color(text, 'MAGENTA')
 
 
 def cyan(text=""):  # Prompts, user input
-    color(text, 'CYAN')
+    _color(text, 'CYAN')
 
 
 def white(text=""):  # Default
     logging.debug(text)
-    color(text, 'WHITE')
+    _color(text, 'WHITE')
