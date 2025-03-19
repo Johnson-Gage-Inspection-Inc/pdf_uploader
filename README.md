@@ -48,7 +48,7 @@ The pdfuploader project is designed to simplify the process of uploading scanned
 ##  Features
 
 | Feature         | Summary       |
-| :--- | :---:           | 
+| :--- | :---:           |
 | **PDF Correction** |  *   Backup OCR if not provided by the scanner.  *   Ensure PDFs are upright by detecting and correcting orientation.  *   Split multi-page PDFs into separate files when a new work order number is detected.|
 | **Automatic Triggers** |  *   Automatically watch directories for new PDFs.  *   Identify document type based on source, contents, or filename.  *   Archive or delete processed files based on settings.  *   Handle file renaming to avoid conflicts.|
 | **Integration** |  *   Upload PDFs to the Qualer API with detailed logging.  *   Retry and resolve naming conflicts during uploads. |
@@ -192,7 +192,7 @@ Ensure you have the following installed:
 Before getting started with pdf_uploader, ensure your runtime environment meets the following requirements:
 
 - **Programming Language:** Python
-- **Package Manager:** Pip 
+- **Package Manager:** Pip
 
 
 ###  Installation
@@ -224,7 +224,7 @@ Install pdf_uploader using one of the following methods:
         source myenv/bin/activate  # Linux/Mac
         myenv\Scripts\activate  # Windows
         ```
-      
+
     3. Install the project dependencies:
 
         **Using `pip`** &nbsp; [<img align="center" src="https://img.shields.io/badge/Pip-3776AB.svg?style={badge_style}&logo=pypi&logoColor=white" />](https://pypi.org/project/pip/)
@@ -256,8 +256,8 @@ Install pdf_uploader using one of the following methods:
 
 1. Create a `.env` file in the root directory of the project to securely store sensitive credentials. Add the following content:
     ```
-    QUALER_USER=your_qualer_username
-    QUALER_PASS=your_qualer_password
+    QUALER_EMAIL=your_QUALER_EMAILname
+    QUALER_PASSWORD=your_QUALER_PASSWORDword
     ```
 
     This user must at least have the API security role in [Employee Settings](https://jgiquality.qualer.com/Company/Employees) on Qualer.
@@ -309,19 +309,19 @@ Choose one:
 + Run with Python:
 
     1. Activate the virtual environment:
-    
+
         ```sh
         source myenv/bin/activate # Linux/Mac
         ```
-    
+
         or
-      
+
         ```sh
         myenv\Scripts\activate     # Windows
         ```
-    
+
     2. Run pdf_uploader using the following command:
-    
+
           ```sh
           python watcher.py
           ```

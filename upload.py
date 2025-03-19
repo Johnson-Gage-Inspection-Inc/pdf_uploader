@@ -36,8 +36,8 @@ def getEnv():
         load_dotenv(dotenv_path)
     else:
         raise FileNotFoundError("The .env file was not found.")
-    username = os.environ.get('QUALER_USER')
-    password = os.environ.get('QUALER_PASS')
+    username = os.environ.get('QUALER_EMAIL')
+    password = os.environ.get('QUALER_PASSWORD')
     return username, password
 
 
