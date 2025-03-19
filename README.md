@@ -6,10 +6,10 @@
   <em>Streamline PDF uploads for seamless Qualer connections.</em>
 </p>
 <p align="center">
-  <img src="https://img.shields.io/github/license/Johnson-Gage-Inspection-Inc/pdf_uploader?style=default&logo=opensourceinitiative&logoColor=white&color=0080ff" alt="license">
   <img src="https://img.shields.io/github/last-commit/Johnson-Gage-Inspection-Inc/pdf_uploader?style=default&logo=git&logoColor=white&color=0080ff" alt="last-commit">
   <img src="https://img.shields.io/github/languages/top/Johnson-Gage-Inspection-Inc/pdf_uploader?style=default&color=0080ff" alt="repo-top-language">
   <img src="https://img.shields.io/github/languages/count/Johnson-Gage-Inspection-Inc/pdf_uploader?style=default&color=0080ff" alt="repo-language-count">
+  <img src="https://img.shields.io/github/v/release/Johnson-Gage-Inspection-Inc/pdf_uploader?style=default&logo=github&logoColor=white&color=0080ff" alt="latest-release">
 </p>
 <p align="center"><!-- default option, no dependency badges. -->
 </p>
