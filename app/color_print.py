@@ -1,6 +1,7 @@
 # app/color_print.py
 import logging
 from app.config import LOG_FILE
+from colorama import init, Fore, Style
 
 # Logging levels:
 # DEBUG: Detailed information, typically of interest only when diagnosing problems.
@@ -12,15 +13,7 @@ from app.config import LOG_FILE
 # Configure logging:
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', filename=LOG_FILE, filemode='a')
 
-colorama_installed = False
-
-try:
-    from colorama import init, Fore, Style
-    init()  # Initialize colorama
-    colorama_installed = True
-except ImportError:
-    print("Please install colorama: pip install colorama")
-    exit(1)
+init()  # Initialize colorama
 
 
 def color(text, color):
