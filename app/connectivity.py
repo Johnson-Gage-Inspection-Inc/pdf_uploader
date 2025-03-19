@@ -16,11 +16,11 @@ def ping_address(address: str) -> bool:
         bool: True if the address is reachable, False otherwise.
     """
     try:
-        param = '-n' if subprocess.os.name == 'nt' else '-c'
+        param = "-n" if subprocess.os.name == "nt" else "-c"
         result = subprocess.run(
-            ['ping', param, '1', address],
+            ["ping", param, "1", address],
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
+            stderr=subprocess.PIPE,
         )
         return result.returncode == 0
     except Exception as e:
@@ -46,7 +46,7 @@ def is_qualer_accessible() -> bool:
     try:
         while True:
             # Attempt to ping the Qualer endpoint
-            if ping_address('qualer.com'):
+            if ping_address("qualer.com"):
                 return True
             else:
                 warn("Qualer server unreachable. Retrying...")

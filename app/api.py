@@ -6,7 +6,7 @@ import traceback
 import requests
 import app.color_print as cp
 import app.pdf as pdf
-from app.config import *
+from app.config import QUALER_ENDPOINT
 from urllib3.exceptions import MaxRetryError
 from app.connectivity import check_connectivity
 
@@ -32,23 +32,16 @@ def handle_exception(exception, response=None):
 
 
 def login(endpoint, username, password):
-    endpoint = endpoint + '/login'
+    endpoint = endpoint + "/login"
 
-    header = {
-        "Content-Type": "application/json",
-        "Accept": "application/json"
-    }
+    header = {"Content-Type": "application/json", "Accept": "application/json"}
 
     if not username or not password:
         cp.red(ERROR_FLAG)
         cp.red("Username or password not provided.")
         raise SystemExit
 
-    data = {
-        "UserName": username,
-        "Password": password,
-        "ClearPreviousTokens": "False"
-    }
+    data = {"UserName": username, "Password": password, "ClearPreviousTokens": "False"}
     try:
         with requests.post(endpoint, data=json.dumps(data), headers=header) as r:
             if r.status_code != 200:
@@ -56,7 +49,7 @@ def login(endpoint, username, password):
 
             try:
                 response = json.loads(r.text)
-                if token := response.get('Token'):
+                if token := response.get("Token"):
                     cp.green("Api-Token " + token)
                     return token
                 else:
@@ -73,11 +66,11 @@ def login(endpoint, username, password):
 
 
 def get_service_orders(data, token):
-    endpoint = QUALER_ENDPOINT + '/service/workorders'
+    endpoint = QUALER_ENDPOINT + "/service/workorders"
     header = {
         "Authorization": "Api-Token " + token,
         "Content-Type": "application/json",
-        "Accept": "application/json"
+        "Accept": "application/json",
     }
     with requests.get(endpoint, params=data, headers=header) as r:
         if r.status_code != 200:
@@ -106,7 +99,9 @@ def getServiceOrderId(token: str, workOrderNumber: str) -> str:
             cp.red(ERROR_FLAG)
             cp.red(f"No service order found for work order: {workOrderNumber}")
             return False
-        return response[0]['ServiceOrderId']  # Exception has occurred: IndexError (list index out of range)
+        return response[0][
+            "ServiceOrderId"
+        ]  # Exception has occurred: IndexError (list index out of range)
     except Exception as e:
         handle_exception(e, response)
 
@@ -116,7 +111,7 @@ def upload(endpoint, token, filepath, serviceOrderId, qualertype):
 
     # https://requests.readthedocs.io/en/latest/user/quickstart/#post-a-multipart-encoded-file
 
-    endpoint = f'{endpoint}/service/workorders/{serviceOrderId}/documents'
+    endpoint = f"{endpoint}/service/workorders/{serviceOrderId}/documents"
 
     if not path.exists(filepath):
         cp.red(ERROR_FLAG)
@@ -129,22 +124,24 @@ def upload(endpoint, token, filepath, serviceOrderId, qualertype):
             new_filename = pdf.increment_filename(filepath)
             pdf.try_rename(filepath, new_filename)
             filepath = new_filename
-        with open(filepath, 'rb') as file:
-            files = {'file': file}
+        with open(filepath, "rb") as file:
+            files = {"file": file}
 
             headers = {
                 "Authorization": "Api-Token " + token,
                 "Accept": "application/json",
-                "Content-Length": str(path.getsize(filepath))
+                "Content-Length": str(path.getsize(filepath)),
             }
 
             requestData = {
-                'model.reportType': qualertype,
+                "model.reportType": qualertype,
             }
             if attempts > 0:
                 cp.white("Retrying upload...")
             try:
-                r = requests.post(endpoint, params=requestData, headers=headers, files=files)
+                r = requests.post(
+                    endpoint, params=requestData, headers=headers, files=files
+                )
 
             except requests.exceptions.ReadTimeout as e:
                 cp.yellow(e)
@@ -161,7 +158,11 @@ def upload(endpoint, token, filepath, serviceOrderId, qualertype):
             except Exception as e:
                 handle_exception(e, r)
 
-            if r.status_code == 400 and error_message == "This document version is locked and cannot be overwritten.":
+            if (
+                r.status_code == 400
+                and error_message
+                == "This document version is locked and cannot be overwritten."
+            ):
                 cp.yellow(error_message)
                 attempts += 1
                 # No return, so that we can try again after the file is renamed.
@@ -177,19 +178,19 @@ def get_service_order_document_list(endpoint, token, ServiceOrderId):
         cp.red("ServiceOrderId not provided.")
         raise SystemExit
 
-    cp.white(f"Fetching document list for service order: https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}...")
+    url = f"https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}"
+    cp.white(
+        f"Fetching document list for service order: {url}..."
+    )
 
-    headers = {
-        'Accept': 'application/json',
-        'Authorization': 'Api-Token ' + token
-    }
+    headers = {"Accept": "application/json", "Authorization": "Api-Token " + token}
 
     endpoint = endpoint + "/service/workorders/documents/list"
 
     params = {
         "from": "1900-01-01T00:00:00",
         "to": "2500-01-01T00:00:00",
-        "serviceOrderId": ServiceOrderId
+        "serviceOrderId": ServiceOrderId,
     }
 
     with requests.get(endpoint, params=params, headers=headers) as r:
@@ -201,7 +202,10 @@ def get_service_order_document_list(endpoint, token, ServiceOrderId):
             file_names = []
             for item in data:
                 file_names.append(item["FileName"])
-            cp.white(f"Found {len(file_names)} documents for service order: https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}")
+            url = f"https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}"
+            cp.white(
+                f"Found {len(file_names)} documents for service order: {url}"
+            )
             return file_names
         except Exception as e:
             handle_exception(e, r)

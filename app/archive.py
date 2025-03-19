@@ -6,7 +6,7 @@ import app.color_print as cp
 
 
 def move_old_pdfs(folder, delete_mode=False):
-    cp.white(f"Checking \"{folder}\" for PDFs from before today...")
+    cp.white(f'Checking "{folder}" for PDFs from before today...')
 
     # Get the current date
     current_date = time.strftime("%Y-%m-%d")
@@ -46,5 +46,7 @@ def move_old_pdfs(folder, delete_mode=False):
                 except shutil.Error as e:
                     cp.white(f"Error compressing and moving {file}: {str(e)}")
                 except OSError as e:
-                    cp.white(f"Error compressing and moving {file}: {str(e)} (File in use)")
+                    cp.white(
+                        f"Error compressing and moving {file}: {str(e)} (File in use)"
+                    )
     cp.white(f"Compressed {str(compressed)} files in {folder}.")
