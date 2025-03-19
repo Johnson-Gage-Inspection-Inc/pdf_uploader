@@ -11,7 +11,13 @@ from colorama import init, Fore, Style
 # CRITICAL: A serious error, indicating that the program itself may be unable to continue running.
 
 # Configure logging:
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s', datefmt='%Y-%m-%d %H:%M:%S', filename=LOG_FILE, filemode='a')
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    filename=LOG_FILE,
+    filemode="a",
+)
 
 init()  # Initialize colorama
 
@@ -23,38 +29,40 @@ def _color(text, color):
 
 def black(text=""):  # Headers
     logging.debug(text)
-    _color(text, 'BLACK')
+    _color(text, "BLACK")
 
 
 def red(text=""):  # Errors and exceptions
     logging.error(text)
-    _color(text, 'RED')
+    _color(text, "RED")
 
 
 def green(text=""):  # Successful
     logging.debug(text)
-    _color(text, 'GREEN')
+    _color(text, "GREEN")
 
 
 def yellow(text=""):  # Warnings, notices, alerts
     logging.warning(text)
-    _color(text, 'YELLOW')
+    _color(text, "YELLOW")
 
 
 def blue(text=""):  # Informational
     logging.info(text)
-    _color(text, 'BLUE')
+    _color(text, "BLUE")
 
 
-def magenta(text=""):  # special or significant information, such as system status updates or important notices.
+def magenta(
+    text="",
+):  # special or significant information, such as system status updates or important notices.
     logging.info(text)
-    _color(text, 'MAGENTA')
+    _color(text, "MAGENTA")
 
 
 def cyan(text=""):  # Prompts, user input
-    _color(text, 'CYAN')
+    _color(text, "CYAN")
 
 
 def white(text=""):  # Default
     logging.debug(text)
-    _color(text, 'WHITE')
+    _color(text, "WHITE")

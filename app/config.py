@@ -26,17 +26,18 @@ This file is used to configure the PDF uploader. It contains the following varia
     - general, assetsummary, assetlabel, assetdetail, assetcertificate, ordersummary,
     - orderinvoice, orderestimate, dashboard, orderdetail, ordercertificate
 """
+
 from os import path
 
 MAX_RUNTIME = None  # Set this to the maximum number of seconds the script should run before stopping. Set to None to run indefinitely.
 
 # Switches:
-LIVEAPI = True              # Set to True to use live API, False to use staging API,
-DEBUG = False               # Set to False to upload files, True to skip uploads
-DELETE_MODE = False         # Set to True to delete old processed PDFs, False to move them to their "Old PDFs" subdirectory
+LIVEAPI = True  # Set to True to use live API, False to use staging API,
+DEBUG = False  # Set to False to upload files, True to skip uploads
+DELETE_MODE = False  # Set to True to delete old processed PDFs, False to move them to their "Old PDFs" subdirectory
 
 # Tesseract OCR path:
-tesseract_cmd_path = r'C:/Program Files/Tesseract-OCR/tesseract.exe'  # Path to the Tesseract OCR executable
+tesseract_cmd_path = r"C:/Program Files/Tesseract-OCR/tesseract.exe"  # Path to the Tesseract OCR executable
 
 # Get the user's home directory
 user_folder = path.expanduser("~")  # e.g. 'C:\Users\JohnDoe'
@@ -49,18 +50,22 @@ LOG_FILE = SHAREPOINT_PATH + r"Logs/pdfUploader.log"
 # Dictionary of directories to watch:
 CONFIG = [
     {
-        'INPUT_DIR': SHAREPOINT_PATH + r'/!!! Front Office Scanned Docs - HOLDING',
-        'OUTPUT_DIR': SHAREPOINT_PATH + r'/!!! Front Office Scanned Docs - HOLDING/Archives',
-        'REJECT_DIR': SHAREPOINT_PATH + r'/!!! Front Office Scanned Docs - HOLDING/No_Order_Found',
-        'QUALER_DOCUMENT_TYPE': 'General'
+        "INPUT_DIR": SHAREPOINT_PATH + r"/!!! Front Office Scanned Docs - HOLDING",
+        "OUTPUT_DIR": SHAREPOINT_PATH
+        + r"/!!! Front Office Scanned Docs - HOLDING/Archives",
+        "REJECT_DIR": SHAREPOINT_PATH
+        + r"/!!! Front Office Scanned Docs - HOLDING/No_Order_Found",
+        "QUALER_DOCUMENT_TYPE": "General",
     },
     {
-        'INPUT_DIR': SHAREPOINT_PATH + r'/!!! Scanned External Certs',
-        'OUTPUT_DIR': SHAREPOINT_PATH + r'/!!! Scanned External Certs/Archives',
-        'REJECT_DIR': SHAREPOINT_PATH + r'/!!! Scanned External Certs/No_Order_Found',
-        'QUALER_DOCUMENT_TYPE': 'ordercertificate'
-    }
+        "INPUT_DIR": SHAREPOINT_PATH + r"/!!! Scanned External Certs",
+        "OUTPUT_DIR": SHAREPOINT_PATH + r"/!!! Scanned External Certs/Archives",
+        "REJECT_DIR": SHAREPOINT_PATH + r"/!!! Scanned External Certs/No_Order_Found",
+        "QUALER_DOCUMENT_TYPE": "ordercertificate",
+    },
 ]
 
 QUALER_ENDPOINT = "https://jgiquality.qualer.com/api"  # Do not change this
-QUALER_STAGING_ENDPOINT = "https://jgiquality.staging.qualer.com/api"  # Do not change this
+QUALER_STAGING_ENDPOINT = (
+    "https://jgiquality.staging.qualer.com/api"  # Do not change this
+)

@@ -22,7 +22,7 @@ from app.connectivity import check_connectivity
 import sys
 import os
 
-if hasattr(sys, '_MEIPASS'):
+if hasattr(sys, "_MEIPASS"):
     os.chdir(sys._MEIPASS)
 
 
@@ -36,7 +36,7 @@ class PDFFileHandler(FileSystemEventHandler):
         super().__init__()
         self.input_dir = input_dir
         self.parameters = parameters
-        self.check_interval = .1
+        self.check_interval = 0.1
         self.stability_duration = 1  # seconds
 
     # Called when a file is created in the input directory
@@ -122,8 +122,12 @@ qualer_parameter_sets = dict_to_list_of_lists(CONFIG)
 
 # Process pre-existing PDF files
 for qualer_parameters in qualer_parameter_sets:
-    move_old_pdfs(qualer_parameters[1], DELETE_MODE)  # Check for and move PDFs in the archive directory not created today
-    move_old_pdfs(qualer_parameters[2], DELETE_MODE)  # Check for and move PDFs in the reject directory not created today
+    move_old_pdfs(
+        qualer_parameters[1], DELETE_MODE
+    )  # Check for and move PDFs in the archive directory not created today
+    move_old_pdfs(
+        qualer_parameters[2], DELETE_MODE
+    )  # Check for and move PDFs in the reject directory not created today
     process_pdfs(qualer_parameters)
 
 # Create a separate thread to watch each input directory
