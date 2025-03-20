@@ -10,14 +10,21 @@ from colorama import init, Fore, Style
 # ERROR: Due to a more serious problem, the software has not been able to perform some function.
 # CRITICAL: A serious error, indicating that the program itself may be unable to continue running.
 
-# Configure logging:
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    filename=LOG_FILE,
-    filemode="a",
-)
+try:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename=LOG_FILE,
+        filemode="a",
+    )
+except FileNotFoundError:
+    text = f"Log file not found: {LOG_FILE}"
+    logging.critical(text)
+    print(Fore.__dict__["RED"] + str(text) + Style.RESET_ALL)
+    input("Press Enter to exit...")
+    exit(1)
+
 
 init()  # Initialize colorama
 
