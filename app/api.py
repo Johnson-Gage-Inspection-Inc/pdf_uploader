@@ -6,7 +6,7 @@ import traceback
 import requests
 import app.color_print as cp
 import app.pdf as pdf
-from app.config import *
+from app.config import QUALER_ENDPOINT
 from urllib3.exceptions import MaxRetryError
 from app.connectivity import check_connectivity
 

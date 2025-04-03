@@ -22,6 +22,7 @@ import app.api as api
 import app.pdf as pdf
 from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT
 from dotenv import load_dotenv
+from app.orientation import reorient_pdf_for_workorders
 
 
 def get_credentials():
@@ -37,7 +38,9 @@ def getEnv():
         return creds
 
     # If not found, try loading from .env file
-    base_path = sys._MEIPASS if getattr(sys, "frozen", False) else os.path.dirname(__file__)
+    base_path = (
+        sys._MEIPASS if getattr(sys, "frozen", False) else os.path.dirname(__file__)
+    )
     dotenv_path = os.path.join(base_path, ".env")
     if os.path.exists(dotenv_path):
         load_dotenv(dotenv_path)
@@ -167,41 +170,6 @@ def upload_by_po(
             traceback.print_exc()
             return [], serviceOrderIds, filepath
     return successSOs, failedSOs, filepath
-
-
-def reorient_pdf_for_workorders(filepath: str, REJECT_DIR: str) -> list:
-    file_name = os.path.basename(filepath)
-    try:
-        cp.white("Checking orientation of PDF file..." + file_name)
-        orientation = pdf.get_pdf_orientation(filepath)  # get orientation of PDF file
-        cp.white(f"Orientation: {orientation} | {file_name}")
-        if orientation in [90, 180, 270]:
-            pdf.rotate_pdf(filepath, orientation)  # rotate PDF file
-
-            if workorders := pdf.workorders(
-                filepath
-            ):  # parse work order numbers from PDF file name/body
-                return workorders
-            else:  # If there are still no work orders, skip the file
-                cp.yellow(f"no work order found in {file_name}, file skipped")
-                pdf.move_file(filepath, REJECT_DIR)  # move file to reject directory
-                return False  # return False to main loop
-        elif orientation == 0:
-            cp.white(
-                "File appears to be right-side-up. Moving file to reject directory..."
-            )
-            pdf.move_file(filepath, REJECT_DIR)  # move file to reject directory
-        else:
-            cp.yellow(f"Reorientation of {file_name} failed. Skipping file...")
-            cp.white("Moving file to reject directory...")
-            pdf.move_file(filepath, REJECT_DIR)  # move file to reject directory
-            return False
-    except FileNotFoundError as e:
-        cp.red(f"Error: {filepath} not found. {e}")
-        return False
-    except Exception as e:
-        cp.red(f"Error: {e}\nFile: {file_name}")
-        return False
 
 
 # Main function
