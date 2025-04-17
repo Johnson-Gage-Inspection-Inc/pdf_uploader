@@ -11,8 +11,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "watcher.py",
-            "console": "integratedTerminal",
-            "python": "myenv\\Scripts\\python.exe"
+            "console": "integratedTerminal"
         }
     ]
 }
