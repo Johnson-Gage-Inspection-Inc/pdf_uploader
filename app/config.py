@@ -50,17 +50,17 @@ LOG_FILE = SHAREPOINT_PATH + r"Logs/pdfUploader.log"
 # Dictionary of directories to watch:
 CONFIG = [
     {
-        "INPUT_DIR": SHAREPOINT_PATH + r"/!!! Front Office Scanned Docs - HOLDING",
+        "INPUT_DIR": SHAREPOINT_PATH + r"!!! Front Office Scanned Docs - HOLDING",
         "OUTPUT_DIR": SHAREPOINT_PATH
-        + r"/!!! Front Office Scanned Docs - HOLDING/Archives",
+        + r"!!! Front Office Scanned Docs - HOLDING/Archives",
         "REJECT_DIR": SHAREPOINT_PATH
-        + r"/!!! Front Office Scanned Docs - HOLDING/No_Order_Found",
+        + r"!!! Front Office Scanned Docs - HOLDING/No_Order_Found",
         "QUALER_DOCUMENT_TYPE": "General",
     },
     {
-        "INPUT_DIR": SHAREPOINT_PATH + r"/!!! Scanned External Certs",
-        "OUTPUT_DIR": SHAREPOINT_PATH + r"/!!! Scanned External Certs/Archives",
-        "REJECT_DIR": SHAREPOINT_PATH + r"/!!! Scanned External Certs/No_Order_Found",
+        "INPUT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs",
+        "OUTPUT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs/Archives",
+        "REJECT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs/No_Order_Found",
         "QUALER_DOCUMENT_TYPE": "ordercertificate",
     },
 ]
