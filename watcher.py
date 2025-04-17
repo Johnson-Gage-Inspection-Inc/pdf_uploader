@@ -22,9 +22,6 @@ from app.connectivity import check_connectivity
 import sys
 import os
 
-if hasattr(sys, "_MEIPASS"):
-    os.chdir(sys._MEIPASS)
-
 
 def process_pdfs(parameters):
     for filepath in pdf.next(parameters[0]):
@@ -115,29 +112,37 @@ def dict_to_list_of_lists(data):
     return result
 
 
-cp.white("Launching Qualer PDF watcher...")
-check_connectivity()
+def main():
+    if hasattr(sys, "_MEIPASS"):
+        os.chdir(sys._MEIPASS)
 
-qualer_parameter_sets = dict_to_list_of_lists(CONFIG)
+    cp.white("Launching Qualer PDF watcher...")
+    check_connectivity()
 
-# Process pre-existing PDF files
-for qualer_parameters in qualer_parameter_sets:
-    move_old_pdfs(
-        qualer_parameters[1], DELETE_MODE
-    )  # Check for and move PDFs in the archive directory not created today
-    move_old_pdfs(
-        qualer_parameters[2], DELETE_MODE
-    )  # Check for and move PDFs in the reject directory not created today
-    process_pdfs(qualer_parameters)
+    qualer_parameter_sets = dict_to_list_of_lists(CONFIG)
 
-# Create a separate thread to watch each input directory
-threads = []
-for parameters in qualer_parameter_sets:
-    input_dir = parameters[0]
-    thread = Thread(target=watch_directory, args=(input_dir, parameters))
-    thread.start()
-    threads.append(thread)
+    # Process pre-existing PDF files
+    for qualer_parameters in qualer_parameter_sets:
+        move_old_pdfs(
+            qualer_parameters[1], DELETE_MODE
+        )  # Check for and move PDFs in the archive directory not created today
+        move_old_pdfs(
+            qualer_parameters[2], DELETE_MODE
+        )  # Check for and move PDFs in the reject directory not created today
+        process_pdfs(qualer_parameters)
 
-# Wait for all threads to finish
-for thread in threads:
-    thread.join()
+    # Create a separate thread to watch each input directory
+    threads = []
+    for parameters in qualer_parameter_sets:
+        input_dir = parameters[0]
+        thread = Thread(target=watch_directory, args=(input_dir, parameters))
+        thread.start()
+        threads.append(thread)
+
+    # Wait for all threads to finish
+    for thread in threads:
+        thread.join()
+
+
+if __name__ == "__main__":
+    main()
