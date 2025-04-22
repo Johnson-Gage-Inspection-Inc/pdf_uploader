@@ -308,6 +308,7 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
     successSOs, failedSOs, new_filepath = upload_by_po(
             filepath, po, po_dict, QUALER_DOCUMENT_TYPE
         )
+    uploadResult = False
     if successSOs:
         cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
         uploadResult = True
