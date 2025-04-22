@@ -74,17 +74,15 @@ def rename_file(filepath: str, doc_list: list) -> str:
         attempts = 10
         did_rename = False
         new_filepath = filepath
-        while not did_rename and attempts > 0:  # Try to rename the file up to 10 times
-            new_filepath = pdf.increment_filename(
-                new_filepath
-            )  # Increment the filename
+        # Try to rename the file up to 10 times
+        while not did_rename and attempts > 0:
+            # Increment the filename
+            new_filepath = pdf.increment_filename(new_filepath)
             new_filename = os.path.basename(new_filepath)
-            if (
-                new_filename not in doc_list
-            ):  # If the file does not exist in Qualer, upload it
-                did_rename = pdf.try_rename(
-                    filepath, new_filepath
-                )  # Try to rename the file
+            # If the file does not exist in Qualer, upload it
+            if (new_filename not in doc_list):
+                # Try to rename the file
+                did_rename = pdf.try_rename(filepath, new_filepath)
             attempts -= 1
         cp.green(f"'{file_name}' renamed to: '{new_filename}'")
         return new_filepath
@@ -96,10 +94,10 @@ def rename_file(filepath: str, doc_list: list) -> str:
         return filepath
 
 
-# Upload file to Qualer endpoint, and resolve name conflicts
 def upload_with_rename(
-    filepath: str, serviceOrderId: str, QUALER_DOCUMENT_TYPE: str
+    filepath: str, serviceOrderId: str, doc_type: str
 ) -> Tuple[bool, str]:
+    """Upload file to Qualer endpoint, and resolve name conflicts"""
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(
         QUALER_ENDPOINT, token, serviceOrderId
@@ -108,17 +106,9 @@ def upload_with_rename(
         rename_file(filepath, doc_list) if file_name in doc_list else filepath
     )  # if the file already exists in Qualer, rename it
     try:
-        uploadResult, new_filepath = (
-            api.upload(
-                QUALER_ENDPOINT,
-                token,
-                new_filepath,
-                serviceOrderId,
-                QUALER_DOCUMENT_TYPE,
-            )
-            if not DEBUG
-            else cp.yellow("debug mode, no uploads")
-        )
+        if DEBUG:
+            cp.yellow("debug mode, no uploads")
+        uploadResult, new_filepath = api.upload(token, new_filepath, serviceOrderId, doc_type)
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
         uploadResult = False, filepath
