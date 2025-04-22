@@ -190,17 +190,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     # Check for PO in file name
     if filename.startswith("PO"):
-        po = extract_po(filename)
-        po_dict = update_PO_numbers(token)
-        cp.white("PO found in file name: " + po)
-        successSOs, failedSOs, new_filepath = upload_by_po(
-            filepath, po, po_dict, QUALER_DOCUMENT_TYPE
-        )
-        if successSOs:
-            cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
-            uploadResult = True
-        if failedSOs:
-            cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
+        uploadResult = handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename)
 
     if not uploadResult:
         # Check for work orders in file body or file name
@@ -304,6 +294,21 @@ def process_file(filepath: str, qualer_parameters: tuple):
     except Exception as e:
         cp.red(e)
         cp.red("Failed to remove file: " + filepath)
+
+
+def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
+    po = extract_po(filename)
+    po_dict = update_PO_numbers(token)
+    cp.white("PO found in file name: " + po)
+    successSOs, failedSOs, new_filepath = upload_by_po(
+            filepath, po, po_dict, QUALER_DOCUMENT_TYPE
+        )
+    if successSOs:
+        cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
+        uploadResult = True
+    if failedSOs:
+        cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
+    return uploadResult
 
 
 if not LIVEAPI:
