@@ -9,7 +9,8 @@ a = Analysis(
         ('myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll', 'pypdfium2_raw'),
         ('myenv/Lib/site-packages/pypdfium2_raw/version.json', 'pypdfium2_raw'),
         ('myenv/Lib/site-packages/pypdfium2/version.json', 'pypdfium2'),
-        ('.env', '.')
+        ('.env', '.'),
+        ('version.py', 'app')
     ],
     hiddenimports=[],
     hookspath=[],

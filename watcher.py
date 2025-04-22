@@ -21,6 +21,7 @@ from upload import process_file
 from app.connectivity import check_connectivity
 import sys
 import os
+from pathlib import Path
 
 
 def process_pdfs(parameters):
@@ -116,7 +117,7 @@ def main():
     if hasattr(sys, "_MEIPASS"):
         os.chdir(sys._MEIPASS)
 
-    cp.white("Launching Qualer PDF watcher...")
+    initialize()
     check_connectivity()
 
     qualer_parameter_sets = dict_to_list_of_lists(CONFIG)
@@ -142,6 +143,18 @@ def main():
     # Wait for all threads to finish
     for thread in threads:
         thread.join()
+
+
+def initialize():
+    cp.white("Launching Qualer PDF watcher...")
+    exec = sys.executable if getattr(sys, 'frozen', False) else __file__
+    exec_path = Path(exec).resolve()
+    cp.white(f"Running from: {exec_path}")
+    try:
+        from app.version import __version__
+    except ImportError:
+        __version__ = "development"
+    cp.white(f"Built from tag: {__version__}")
 
 
 if __name__ == "__main__":
