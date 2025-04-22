@@ -180,7 +180,7 @@ def move_file(filepath, output_dir):
     while attempt < 50:  # Max number of rename attempts = 50
         try:
             os.rename(filepath, new_filepath)
-            cp.green(f"Moved file to {new_filepath}.")
+            cp.green(f"Moved file to {os.path.relpath(new_filepath)}.")
             return new_filepath
         except PermissionError as e:
             cp.yellow(e)
