@@ -194,15 +194,11 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     if not uploadResult:
         # Check for work orders in file body or file name
-        workorders = pdf.workorders(
-            filepath
-        )  # parse work order numbers from PDF file name/body
-
-        # if no work orders found, check the orientation of the PDF file.
+        workorders = pdf.workorders(filepath)
         if not workorders:
             workorders = reorient_pdf_for_workorders(filepath, REJECT_DIR)
-            if not workorders:
-                return False
+        if not workorders:
+            return False
 
         # if work orders found in filename, upload file to Qualer endpoint(s)
         if isinstance(workorders, list):
