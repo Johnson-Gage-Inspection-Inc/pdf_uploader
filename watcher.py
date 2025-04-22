@@ -16,7 +16,7 @@ from watchdog.observers import Observer
 import app.color_print as cp
 import app.pdf as pdf
 from app.archive import move_old_pdfs
-from app.config import CONFIG, DELETE_MODE, MAX_RUNTIME
+from app.config import CONFIG, MAX_RUNTIME
 from upload import process_file
 from app.connectivity import check_connectivity
 import sys
@@ -120,23 +120,16 @@ def main():
     initialize()
     check_connectivity()
 
-    qualer_parameter_sets = dict_to_list_of_lists(CONFIG)
-
     # Process pre-existing PDF files
-    for qualer_parameters in qualer_parameter_sets:
-        move_old_pdfs(
-            qualer_parameters[1], DELETE_MODE
-        )  # Check for and move PDFs in the archive directory not created today
-        move_old_pdfs(
-            qualer_parameters[2], DELETE_MODE
-        )  # Check for and move PDFs in the reject directory not created today
-        process_pdfs(qualer_parameters)
-
-    # Create a separate thread to watch each input directory
     threads = []
-    for parameters in qualer_parameter_sets:
-        input_dir = parameters[0]
-        thread = Thread(target=watch_directory, args=(input_dir, parameters))
+    for params in dict_to_list_of_lists(CONFIG):
+        move_old_pdfs(params[1])  # archive directory
+        move_old_pdfs(params[2])  # reject directory
+        process_pdfs(params)
+
+        # Create a separate thread to watch each input directory
+        input_dir = params[0]
+        thread = Thread(target=watch_directory, args=(input_dir, params))
         thread.start()
         threads.append(thread)
 
