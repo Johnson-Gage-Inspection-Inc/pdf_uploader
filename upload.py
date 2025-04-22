@@ -138,14 +138,7 @@ def upload_by_po(
         cp.yellow(f"PO# {po} not found in Qualer.")
         return [], [], filepath
     serviceOrderIds = dict[po]
-    cp.green(
-        "Found "
-        + str(len(serviceOrderIds))
-        + " service orders for PO "
-        + po
-        + ": "
-        + str(serviceOrderIds)
-    )
+    cp.green(f"Found {len(serviceOrderIds)} service orders for PO {po}: {serviceOrderIds}")
     successSOs = []
     failedSOs = []
     for serviceOrderId in serviceOrderIds:
