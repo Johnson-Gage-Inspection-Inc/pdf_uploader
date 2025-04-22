@@ -30,7 +30,7 @@ except Exception as e:
         f"Tesseract not found at: {tesseract_cmd_path}. Please install Tesseract and set the path in config.py\n{e}"
     )
 
-PO_NUM_FORMAT = r"56561-\d{6}"
+WO_NUM_FORMAT = r"56561-\d{6}"
 
 
 # Iterate over PDF files in directory
@@ -131,21 +131,26 @@ def create_child_pdf(filepath, pg_nums, output_path):
 # append pages with no work order to the previous work order.
 def workorders(filepath):
     order_number = ""
-    fileorders = findall(PO_NUM_FORMAT, filepath)  # Find order numbers in file name
-    if fileorders != []:  # If order number found in file name
-        return fileorders  # Return orders number found in file name
+    fileorders = findall(WO_NUM_FORMAT, filepath)  # Find order numbers in file name
 
-    text = extract(filepath)  # Get list of text from PDF
+    # Use order number from file name if found
+    if fileorders != []:
+        return fileorders
+
+    pages = extract(filepath)  # Get list of text from PDF
     scannedorders = {}  # Create empty dictionary for order numbers
-    for page_index, page in enumerate(text):  # Loop through pages
-        order_numbers = findall(PO_NUM_FORMAT, page)  # Find order numbers in page
-        if order_numbers != []:  # If new order number found
-            order_number = order_numbers[0]  # Use new order number
+    for page_index, page in enumerate(pages):
+        order_numbers = findall(WO_NUM_FORMAT, page)  # Find order numbers in page
+        # Use new order number if found
+        if order_numbers != []:
+            order_number = order_numbers[0]
         else:
-            if order_number == "":  # If no old order number
-                continue  # Skip page
-            if page.strip() == "":  # If page is empty
-                continue  # Skip page
+            # Skip pages without order numbers
+            if order_number == "":
+                continue
+            # Skip emptry pages
+            if page.strip() == "":
+                continue
 
         if order_number not in scannedorders:
             scannedorders[order_number] = set()  # Create empty set for order number
