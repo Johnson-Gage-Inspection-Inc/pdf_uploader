@@ -20,9 +20,25 @@ import app.color_print as cp
 from app.PurchaseOrders import update_PO_numbers, extract_po
 import app.api as api
 import app.pdf as pdf
-from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT
+from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT, LOG_FILE
 from dotenv import load_dotenv
 from app.orientation import reorient_pdf_for_workorders
+import logging
+
+try:
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename=LOG_FILE,
+        filemode="a",
+    )
+except FileNotFoundError:
+    text = f"Log file not found: {LOG_FILE}"
+    logging.critical(text)
+    print(text)
+    input("Press Enter to exit...")
+    raise SystemExit
 
 
 def get_credentials():
@@ -58,17 +74,15 @@ def rename_file(filepath: str, doc_list: list) -> str:
         attempts = 10
         did_rename = False
         new_filepath = filepath
-        while not did_rename and attempts > 0:  # Try to rename the file up to 10 times
-            new_filepath = pdf.increment_filename(
-                new_filepath
-            )  # Increment the filename
+        # Try to rename the file up to 10 times
+        while not did_rename and attempts > 0:
+            # Increment the filename
+            new_filepath = pdf.increment_filename(new_filepath)
             new_filename = os.path.basename(new_filepath)
-            if (
-                new_filename not in doc_list
-            ):  # If the file does not exist in Qualer, upload it
-                did_rename = pdf.try_rename(
-                    filepath, new_filepath
-                )  # Try to rename the file
+            # If the file does not exist in Qualer, upload it
+            if (new_filename not in doc_list):
+                # Try to rename the file
+                did_rename = pdf.try_rename(filepath, new_filepath)
             attempts -= 1
         cp.green(f"'{file_name}' renamed to: '{new_filename}'")
         return new_filepath
@@ -80,10 +94,10 @@ def rename_file(filepath: str, doc_list: list) -> str:
         return filepath
 
 
-# Upload file to Qualer endpoint, and resolve name conflicts
 def upload_with_rename(
-    filepath: str, serviceOrderId: str, QUALER_DOCUMENT_TYPE: str
+    filepath: str, serviceOrderId: str, doc_type: str
 ) -> Tuple[bool, str]:
+    """Upload file to Qualer endpoint, and resolve name conflicts"""
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(
         QUALER_ENDPOINT, token, serviceOrderId
@@ -92,17 +106,9 @@ def upload_with_rename(
         rename_file(filepath, doc_list) if file_name in doc_list else filepath
     )  # if the file already exists in Qualer, rename it
     try:
-        uploadResult, new_filepath = (
-            api.upload(
-                QUALER_ENDPOINT,
-                token,
-                new_filepath,
-                serviceOrderId,
-                QUALER_DOCUMENT_TYPE,
-            )
-            if not DEBUG
-            else cp.yellow("debug mode, no uploads")
-        )
+        if DEBUG:
+            cp.yellow("debug mode, no uploads")
+        uploadResult, new_filepath = api.upload(token, new_filepath, serviceOrderId, doc_type)
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
         uploadResult = False, filepath
@@ -138,14 +144,7 @@ def upload_by_po(
         cp.yellow(f"PO# {po} not found in Qualer.")
         return [], [], filepath
     serviceOrderIds = dict[po]
-    cp.green(
-        "Found "
-        + str(len(serviceOrderIds))
-        + " service orders for PO "
-        + po
-        + ": "
-        + str(serviceOrderIds)
-    )
+    cp.green(f"Found {len(serviceOrderIds)} service orders for PO {po}: {serviceOrderIds}")
     successSOs = []
     failedSOs = []
     for serviceOrderId in serviceOrderIds:
@@ -190,29 +189,15 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     # Check for PO in file name
     if filename.startswith("PO"):
-        po = extract_po(filename)
-        po_dict = update_PO_numbers(token)
-        cp.white("PO found in file name: " + po)
-        successSOs, failedSOs, new_filepath = upload_by_po(
-            filepath, po, po_dict, QUALER_DOCUMENT_TYPE
-        )
-        if successSOs:
-            cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
-            uploadResult = True
-        if failedSOs:
-            cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
+        uploadResult = handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename)
 
     if not uploadResult:
         # Check for work orders in file body or file name
-        workorders = pdf.workorders(
-            filepath
-        )  # parse work order numbers from PDF file name/body
-
-        # if no work orders found, check the orientation of the PDF file.
+        workorders = pdf.workorders(filepath)
         if not workorders:
             workorders = reorient_pdf_for_workorders(filepath, REJECT_DIR)
-            if not workorders:
-                return False
+        if not workorders:
+            return False
 
         # if work orders found in filename, upload file to Qualer endpoint(s)
         if isinstance(workorders, list):
@@ -266,7 +251,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
                 except Exception as e:
                     cp.red(e)
 
-    # If the upload failed, move the file to the reject directory
+    # If the upload still failed, move the file to the reject directory
     if not uploadResult and os.path.isfile(filepath):
         cp.red("Failed to upload " + filepath + ". Moving to reject directory...")
         pdf.move_file(filepath, REJECT_DIR)
@@ -302,8 +287,24 @@ def process_file(filepath: str, qualer_parameters: tuple):
             os.rename(filepath, pdf.increment_filename(filepath))
 
     except Exception as e:
-        cp.red(e)
-        cp.red("Failed to remove file: " + filepath)
+        cp.yellow("Failed to remove file:", filepath, e)
+        logging.debug(traceback.format_exc())
+
+
+def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
+    po = extract_po(filename)
+    po_dict = update_PO_numbers(token)
+    cp.white("PO found in file name: " + po)
+    successSOs, failedSOs, new_filepath = upload_by_po(
+            filepath, po, po_dict, QUALER_DOCUMENT_TYPE
+        )
+    uploadResult = False
+    if successSOs:
+        cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
+        uploadResult = True
+    if failedSOs:
+        cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
+    return uploadResult
 
 
 if not LIVEAPI:

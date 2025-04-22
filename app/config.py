@@ -46,6 +46,7 @@ SHAREPOINT_PATH = (
     + "/Johnson Gage and Inspection, Inc/Johnson Gage and Inspection, Inc. - Documents/Sysop's OneDrive/Shared with Everyone/access/"
 )
 LOG_FILE = SHAREPOINT_PATH + r"Logs/pdfUploader.log"
+PO_DICT_FILE = SHAREPOINT_PATH + r"Logs/DoNotMoveThisFile.json.gz"
 
 # Dictionary of directories to watch:
 CONFIG = [

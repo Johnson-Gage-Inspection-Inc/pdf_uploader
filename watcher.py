@@ -16,23 +16,24 @@ from watchdog.observers import Observer
 import app.color_print as cp
 import app.pdf as pdf
 from app.archive import move_old_pdfs
-from app.config import CONFIG, DELETE_MODE, MAX_RUNTIME
+from app.config import CONFIG, MAX_RUNTIME
 from upload import process_file
 from app.connectivity import check_connectivity
 import sys
 import os
+from pathlib import Path
 
 
-def process_pdfs(parameters):
-    for filepath in pdf.next(parameters[0]):
-        process_file(filepath, parameters)
+def process_pdfs(params):
+    for filepath in pdf.next(params[0]):
+        process_file(filepath, params)
 
 
 class PDFFileHandler(FileSystemEventHandler):
-    def __init__(self, input_dir, parameters):
+    def __init__(self, input_dir, params):
         super().__init__()
         self.input_dir = input_dir
-        self.parameters = parameters
+        self.parameters = params
         self.check_interval = 0.1
         self.stability_duration = 1  # seconds
 
@@ -48,7 +49,8 @@ class PDFFileHandler(FileSystemEventHandler):
 
     def wait_for_file_stability(self, file_path):
         """
-        Wait until the file is no longer being written to.
+        Wait until the file is no longer being written to,
+        by checking if the file size remains the same for a certain duration.
         """
         previous_size = -1
         stable_time = 0
@@ -68,14 +70,14 @@ class PDFFileHandler(FileSystemEventHandler):
                 previous_size = current_size
                 time.sleep(self.check_interval)
             except FileNotFoundError:
-                cp.red(f"File not found: {file_path}")
+                cp.yellow(f"File not found: {file_path}")
                 return False
 
 
 # Watch a directory for new PDF files
-def watch_directory(input_dir, parameters):
+def watch_directory(input_dir, params):
     cp.blue(f'Watching for PDF files in "{input_dir}"...')
-    event_handler = PDFFileHandler(input_dir, parameters)
+    event_handler = PDFFileHandler(input_dir, params)
     observer = Observer()
     observer.schedule(event_handler, input_dir, recursive=False)
     observer.start()
@@ -116,32 +118,37 @@ def main():
     if hasattr(sys, "_MEIPASS"):
         os.chdir(sys._MEIPASS)
 
-    cp.white("Launching Qualer PDF watcher...")
+    initialize()
     check_connectivity()
 
-    qualer_parameter_sets = dict_to_list_of_lists(CONFIG)
-
     # Process pre-existing PDF files
-    for qualer_parameters in qualer_parameter_sets:
-        move_old_pdfs(
-            qualer_parameters[1], DELETE_MODE
-        )  # Check for and move PDFs in the archive directory not created today
-        move_old_pdfs(
-            qualer_parameters[2], DELETE_MODE
-        )  # Check for and move PDFs in the reject directory not created today
-        process_pdfs(qualer_parameters)
-
-    # Create a separate thread to watch each input directory
     threads = []
-    for parameters in qualer_parameter_sets:
-        input_dir = parameters[0]
-        thread = Thread(target=watch_directory, args=(input_dir, parameters))
+    for params in dict_to_list_of_lists(CONFIG):
+        move_old_pdfs(params[1])  # archive directory
+        move_old_pdfs(params[2])  # reject directory
+        process_pdfs(params)
+
+        # Create a separate thread to watch each input directory
+        input_dir = params[0]
+        thread = Thread(target=watch_directory, args=(input_dir, params))
         thread.start()
         threads.append(thread)
 
     # Wait for all threads to finish
     for thread in threads:
         thread.join()
+
+
+def initialize():
+    cp.white("Launching Qualer PDF watcher...")
+    executable = sys.executable if getattr(sys, 'frozen', False) else __file__
+    exec_path = Path(executable).resolve()
+    cp.blue(f"Running from: {exec_path}")
+    try:
+        from app.version import __version__
+    except ImportError:
+        __version__ = "development"
+    cp.blue(f"Built from tag: {__version__}")
 
 
 if __name__ == "__main__":

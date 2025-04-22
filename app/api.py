@@ -106,12 +106,12 @@ def getServiceOrderId(token: str, workOrderNumber: str) -> str:
         handle_exception(e, response)
 
 
-def upload(endpoint, token, filepath, serviceOrderId, qualertype):
+def upload(token, filepath, serviceOrderId, qualertype):
     cp.white(f"Attempting upload for SO# {serviceOrderId}: '{path.basename(filepath)}'")
 
     # https://requests.readthedocs.io/en/latest/user/quickstart/#post-a-multipart-encoded-file
 
-    endpoint = f"{endpoint}/service/workorders/{serviceOrderId}/documents"
+    endpoint = f"{QUALER_ENDPOINT}/service/workorders/{serviceOrderId}/documents"
 
     if not path.exists(filepath):
         cp.red(ERROR_FLAG)
@@ -202,7 +202,7 @@ def get_service_order_document_list(endpoint, token, ServiceOrderId):
             for item in data:
                 file_names.append(item["FileName"])
             cp.white(
-                f"Found {len(file_names)} documents for service order: https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}"
+                f"Found {len(file_names)} documents at https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}"
             )
             return file_names
         except Exception as e:

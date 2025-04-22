@@ -3,9 +3,12 @@ import shutil
 import time
 import zipfile
 import app.color_print as cp
+from app.config import DELETE_MODE
 
 
-def move_old_pdfs(folder, delete_mode=False):
+def move_old_pdfs(folder, delete_mode=None):
+    """Check for and move PDFs not created today."""
+    delete_mode = DELETE_MODE if delete_mode is None else delete_mode
     cp.white(f'Checking "{folder}" for PDFs from before today...')
 
     # Get the current date
