@@ -49,7 +49,8 @@ class PDFFileHandler(FileSystemEventHandler):
 
     def wait_for_file_stability(self, file_path):
         """
-        Wait until the file is no longer being written to.
+        Wait until the file is no longer being written to,
+        by checking if the file size remains the same for a certain duration.
         """
         previous_size = -1
         stable_time = 0
