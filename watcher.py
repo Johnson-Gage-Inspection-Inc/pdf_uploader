@@ -70,7 +70,7 @@ class PDFFileHandler(FileSystemEventHandler):
                 previous_size = current_size
                 time.sleep(self.check_interval)
             except FileNotFoundError:
-                cp.red(f"File not found: {file_path}")
+                cp.yellow(f"File not found: {file_path}")
                 return False
 
 
