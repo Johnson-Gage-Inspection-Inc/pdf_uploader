@@ -107,9 +107,7 @@ def update_PO_numbers(
         if len(response) > 0:
             cp.yellow(f"Saving dictionary to {os.path.relpath(PO_DICT_FILE)}...")
             dict = update_dict(dict, response)
-            save_as_zip_file(
-                dict, PO_DICT_FILE
-            )  # Compress the updated dictionary and write to the file
+            save_as_zip_file(dict)
             cp.white(f"Dictionary updated and saved to {PO_DICT_FILE}.")
             return dict
     cp.white("No changes detected since the last update.")
