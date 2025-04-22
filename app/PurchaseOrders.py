@@ -87,7 +87,8 @@ def update_PO_numbers(
     """
     # Read the compressed dictionary from the file
     try:
-        dict = expand_from_file(PO_DICT_FILE)
+        with gzip.open(PO_DICT_FILE, "rb") as f:
+            dict = json.loads(f.read().decode("utf-8"))
         cp.green(f"Using PO dictionary file at: {PO_DICT_FILE}")
     except gzip.BadGzipFile:
         cp.red("Error: The file is not a valid gzip file.")
@@ -124,16 +125,6 @@ def save_as_zip_file(dict: dict):
     with gzip.open(PO_DICT_FILE, "wb") as file:
         json_data = json.dumps(dict).encode("utf-8")
         file.write(json_data)
-
-
-def expand_from_file() -> dict:
-    """Read the compressed dictionary from the file.
-
-    Returns:
-        dict: A dictionary of PO numbers and their corresponding service order IDs.
-    """
-    with gzip.open(PO_DICT_FILE, "rb") as f:
-        return json.loads(f.read().decode("utf-8"))
 
 
 def extract_po(filename: str) -> str:
