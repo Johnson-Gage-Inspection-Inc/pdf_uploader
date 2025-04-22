@@ -27,6 +27,7 @@ jobs:
           pip install -r requirements.txt
           echo "QUALER_EMAIL=${{ secrets.QUALER_EMAIL }}" > .env
           echo "QUALER_PASSWORD=${{ secrets.QUALER_PASSWORD }}" >> .env
+          echo "__version__ = '${{ github.ref_name }}'" > app/version.py
           pyinstaller PDF_Uploader.spec
 
       - name: Upload build artifacts
