@@ -5,7 +5,12 @@ a = Analysis(
     ['watcher.py'],
     pathex=[],
     binaries=[],
-    datas=[('myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll', 'pypdfium2_raw'), ('myenv/Lib/site-packages/pypdfium2_raw/version.json', 'pypdfium2_raw'), ('myenv/Lib/site-packages/pypdfium2/version.json', 'pypdfium2'), ('.env', '.'), ('app/dict.json.gz', 'app')],
+    datas=[
+        ('myenv/Lib/site-packages/pypdfium2_raw/pdfium.dll', 'pypdfium2_raw'),
+        ('myenv/Lib/site-packages/pypdfium2_raw/version.json', 'pypdfium2_raw'),
+        ('myenv/Lib/site-packages/pypdfium2/version.json', 'pypdfium2'),
+        ('.env', '.')
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
