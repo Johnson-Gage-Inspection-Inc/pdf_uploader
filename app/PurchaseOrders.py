@@ -145,25 +145,23 @@ def expand_from_file(file_path: str = "app/dict.json.gz"):
 
 
 def extract_po(filename: str) -> str:
-    """Extract the PO number from the filename.
+    """Extract the PO number from the filename using regular expressions.
+
+    The filename is expected to start with 'PO' optionally followed by delimiters
+    such as space, underscore, dash, or hash, then the PO number.
 
     Args:
         filename (str): The filename.
 
     Returns:
-        str: The PO number.
+        str: The extracted PO number.
     """
-    possible_delimiters = [" ", "_", "-", "#"]
-    po = filename.replace(" - ", "-")
-    for delimiter in possible_delimiters:
-        if filename.startswith("PO" + delimiter):
-            po = po.replace(".pdf", "").split(delimiter)[1]
-            return po
-    if filename.startswith(
-        "PO"
-    ):  # FIXME: Double check the logic, here, and make sure it's properly documented.
-        for delimiter in possible_delimiters:
-            possible_po = po.replace(".pdf", "").split(delimiter)[0].replace("PO", "")
-            if len(possible_po) < len(po):
-                po = possible_po
-    return po
+    # Remove .pdf extension properly if present.
+    if filename.lower().endswith(".pdf"):
+        filename = filename.replace(" - ", "-")[:-4]
+    else:
+        raise ValueError("Filename must end with .pdf")
+    # Match "PO" followed by optional delimiters then capture the PO number.
+    if match := re.match(r"^PO[\s_\-#]*(\S+)", filename, flags=re.IGNORECASE):
+        return match.group(1)
+    return filename
