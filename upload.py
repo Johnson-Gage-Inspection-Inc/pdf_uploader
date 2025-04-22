@@ -20,9 +20,25 @@ import app.color_print as cp
 from app.PurchaseOrders import update_PO_numbers, extract_po
 import app.api as api
 import app.pdf as pdf
-from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT
+from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT, LOG_FILE
 from dotenv import load_dotenv
 from app.orientation import reorient_pdf_for_workorders
+import logging
+
+try:
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        filename=LOG_FILE,
+        filemode="a",
+    )
+except FileNotFoundError:
+    text = f"Log file not found: {LOG_FILE}"
+    logging.critical(text)
+    print(text)
+    input("Press Enter to exit...")
+    raise SystemExit
 
 
 def get_credentials():
@@ -245,7 +261,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
                 except Exception as e:
                     cp.red(e)
 
-    # If the upload failed, move the file to the reject directory
+    # If the upload still failed, move the file to the reject directory
     if not uploadResult and os.path.isfile(filepath):
         cp.red("Failed to upload " + filepath + ". Moving to reject directory...")
         pdf.move_file(filepath, REJECT_DIR)
@@ -281,8 +297,8 @@ def process_file(filepath: str, qualer_parameters: tuple):
             os.rename(filepath, pdf.increment_filename(filepath))
 
     except Exception as e:
-        cp.red(e)
-        cp.red("Failed to remove file: " + filepath)
+        cp.yellow("Failed to remove file:", filepath, e)
+        logging.debug(traceback.format_exc())
 
 
 def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
