@@ -141,8 +141,8 @@ def main():
 
 def initialize():
     cp.white("Launching Qualer PDF watcher...")
-    exec = sys.executable if getattr(sys, 'frozen', False) else __file__
-    exec_path = Path(exec).resolve()
+    executable = sys.executable if getattr(sys, 'frozen', False) else __file__
+    exec_path = Path(executable).resolve()
     cp.blue(f"Running from: {exec_path}")
     try:
         from app.version import __version__
