@@ -193,9 +193,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     if not uploadResult:
         # Check for work orders in file body or file name
-        workorders = pdf.workorders(filepath)
-        if not workorders:
-            workorders = reorient_pdf_for_workorders(filepath, REJECT_DIR)
+        workorders = pdf.workorders(filepath) or reorient_pdf_for_workorders(filepath, REJECT_DIR)
         if not workorders:
             return False
 
