@@ -1,6 +1,6 @@
 from fitz import open as fopen, Matrix
 import numpy as np
-from PyPDF2 import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 from pytesseract import image_to_osd, TesseractError
 from PIL import Image
 import cv2

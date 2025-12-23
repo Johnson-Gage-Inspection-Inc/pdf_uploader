@@ -1,7 +1,7 @@
 # /app/pdf.py
 
 from pdf2image import convert_from_path
-from PyPDF2 import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 from pytesseract import pytesseract, image_to_string
 from pypdfium2 import PdfDocument
 from app.config import tesseract_cmd_path
