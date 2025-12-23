@@ -18,5 +18,5 @@ pytesseract==0.3.13
 python-dotenv==1.0.1
 pywin32-ctypes==0.2.3
 requests==2.32.3
-urllib3==2.3.0
+urllib3==2.6.0
 watchdog==6.0.0
