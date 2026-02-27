@@ -1,4 +1,5 @@
 # connectivity.py
+import os
 import subprocess
 from os.path import exists
 from app.config import SHAREPOINT_PATH
@@ -16,7 +17,7 @@ def ping_address(address: str) -> bool:
         bool: True if the address is reachable, False otherwise.
     """
     try:
-        param = "-n" if subprocess.os.name == "nt" else "-c"
+        param = "-n" if os.name == "nt" else "-c"
         result = subprocess.run(
             ["ping", param, "1", address],
             stdout=subprocess.PIPE,
