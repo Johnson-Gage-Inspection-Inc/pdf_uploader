@@ -9,6 +9,7 @@ import app.pdf as pdf
 from app.config import QUALER_ENDPOINT
 from urllib3.exceptions import MaxRetryError
 from app.connectivity import check_connectivity
+from typing import Optional
 
 ERROR_FLAG = "ERROR:"
 
@@ -50,7 +51,6 @@ def login(endpoint, username, password):
             try:
                 response = json.loads(r.text)
                 if token := response.get("Token"):
-                    cp.green("Api-Token " + token)
                     return token
                 else:
                     cp.red(ERROR_FLAG)
@@ -80,7 +80,7 @@ def get_service_orders(data, token):
         return response
 
 
-def getServiceOrderId(token: str, workOrderNumber: str) -> str:
+def getServiceOrderId(token: str, workOrderNumber: str) -> Optional[str]:
     """Get the service order ID for a work order number.
 
     Args:
@@ -98,12 +98,11 @@ def getServiceOrderId(token: str, workOrderNumber: str) -> str:
         if len(response) == 0:
             cp.red(ERROR_FLAG)
             cp.red(f"No service order found for work order: {workOrderNumber}")
-            return False
-        return response[0][
-            "ServiceOrderId"
-        ]  # Exception has occurred: IndexError (list index out of range)
+            return None
+        return response[0].get("ServiceOrderId")
     except Exception as e:
         handle_exception(e, response)
+        return None
 
 
 def upload(token, filepath, serviceOrderId, qualertype):
@@ -144,7 +143,7 @@ def upload(token, filepath, serviceOrderId, qualertype):
                 )
 
             except requests.exceptions.ReadTimeout as e:
-                cp.yellow(e)
+                cp.yellow(e.__str__())
                 attempts += 1
                 continue
 
