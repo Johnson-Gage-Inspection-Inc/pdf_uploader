@@ -143,7 +143,7 @@ def upload(token, filepath, serviceOrderId, qualertype):
                 )
 
             except requests.exceptions.ReadTimeout as e:
-                cp.yellow(e.__str__())
+                cp.yellow(e)
                 attempts += 1
                 continue
 
