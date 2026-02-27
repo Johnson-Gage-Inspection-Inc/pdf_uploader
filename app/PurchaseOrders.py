@@ -3,6 +3,7 @@ import datetime as dt
 import gzip
 import json
 import os
+from typing import Optional
 import app.api as api
 import app.color_print as cp
 from app.config import PO_DICT_FILE
@@ -32,7 +33,7 @@ def _get_PO_numbers(
     start_str="2020-08-13T00:00:00",
     end_str=dt.datetime.now().strftime(DT_FORMAT),
     increment=91,
-) -> dict:
+) -> dict[str, list[str]]:
     """Get a dictionary of PO numbers and their corresponding service order IDs from the API.
 
     Args:
@@ -46,7 +47,7 @@ def _get_PO_numbers(
     Returns:
         lookup (dict): PO numbers and their corresponding service order IDs.
     """
-    lookup = {}
+    lookup: dict[str, list[str]] = {}
 
     start_date = dt.datetime.strptime(start_str, DT_FORMAT)
     end_date = dt.datetime.strptime(end_str, DT_FORMAT)
@@ -73,8 +74,8 @@ def _get_PO_numbers(
 
 
 def update_PO_numbers(
-    token: str, modified_after: str = None
-) -> dict:
+    token: str, modified_after: Optional[str] = None
+) -> dict[str, list[str]]:
     """Update the PO dictionary with new PO numbers from the API.
 
     Args:
@@ -93,7 +94,7 @@ def update_PO_numbers(
     except gzip.BadGzipFile:
         cp.red("Error: The file is not a valid gzip file.")
         lookup = _get_PO_numbers(token)
-        save_as_zip_file(lookup, PO_DICT_FILE)
+        save_as_zip_file(lookup)
 
     timestamp = os.path.getmtime(PO_DICT_FILE)  # Get the time of the last change
     last_modified = dt.datetime.fromtimestamp(timestamp)
@@ -114,7 +115,7 @@ def update_PO_numbers(
     return lookup
 
 
-def save_as_zip_file(lookup: dict):
+def save_as_zip_file(lookup: dict[str, list[str]]):
     """Compress the dictionary and write to the file.
 
     Args:
