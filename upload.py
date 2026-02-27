@@ -20,7 +20,13 @@ import app.color_print as cp
 from app.PurchaseOrders import update_PO_numbers, extract_po
 import app.api as api
 import app.pdf as pdf
-from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT, LOG_FILE
+from app.config import (
+    QUALER_STAGING_ENDPOINT,
+    DEBUG,
+    LIVEAPI,
+    QUALER_ENDPOINT,
+    LOG_FILE,
+)
 from dotenv import load_dotenv
 from app.orientation import reorient_pdf_for_workorders
 import logging
@@ -80,7 +86,7 @@ def rename_file(filepath: str, doc_list: list) -> str:
             new_filepath = pdf.increment_filename(new_filepath)
             new_filename = os.path.basename(new_filepath)
             # If the file does not exist in Qualer, upload it
-            if (new_filename not in doc_list):
+            if new_filename not in doc_list:
                 # Try to rename the file
                 did_rename = pdf.try_rename(filepath, new_filepath)
             attempts -= 1
@@ -108,7 +114,9 @@ def upload_with_rename(
     try:
         if DEBUG:
             cp.yellow("debug mode, no uploads")
-        uploadResult, new_filepath = api.upload(token, new_filepath, serviceOrderId, doc_type)
+        uploadResult, new_filepath = api.upload(
+            token, new_filepath, serviceOrderId, doc_type
+        )
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
         uploadResult = False, filepath
@@ -144,7 +152,9 @@ def upload_by_po(
         cp.yellow(f"PO# {po} not found in Qualer.")
         return [], [], filepath
     serviceOrderIds = dict[po]
-    cp.green(f"Found {len(serviceOrderIds)} service orders for PO {po}: {serviceOrderIds}")
+    cp.green(
+        f"Found {len(serviceOrderIds)} service orders for PO {po}: {serviceOrderIds}"
+    )
     successSOs = []
     failedSOs = []
     for serviceOrderId in serviceOrderIds:
@@ -180,7 +190,6 @@ def process_file(filepath: str, qualer_parameters: tuple):
     # unpack parameters
     INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters
 
-    global noworkorders
     global total
     new_filepath = False
     total += 1
@@ -258,7 +267,11 @@ def process_file(filepath: str, qualer_parameters: tuple):
         return False
 
     # If the file was renamed, update the filepath
-    if new_filepath:
+    if new_filepath is not False:
+        if not isinstance(new_filepath, str):
+            raise ValueError(
+                f"Expected new_filepath to be a string, got {type(new_filepath)}"
+            )
         filepath = new_filepath
 
     # Remove file if there were no failures
@@ -287,7 +300,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
             os.rename(filepath, pdf.increment_filename(filepath))
 
     except Exception as e:
-        cp.yellow("Failed to remove file:", filepath, e)
+        cp.yellow(f"Failed to remove file: {filepath} | {e}")
         logging.debug(traceback.format_exc())
 
 
@@ -296,8 +309,8 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
     po_dict = update_PO_numbers(token)
     cp.white("PO found in file name: " + po)
     successSOs, failedSOs, new_filepath = upload_by_po(
-            filepath, po, po_dict, QUALER_DOCUMENT_TYPE
-        )
+        filepath, po, po_dict, QUALER_DOCUMENT_TYPE
+    )
     uploadResult = False
     if successSOs:
         cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")

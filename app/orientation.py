@@ -1,3 +1,5 @@
+from typing import Any
+
 from fitz import open as fopen, Matrix
 import numpy as np
 from pypdf import PdfReader, PdfWriter
@@ -6,11 +8,15 @@ from PIL import Image
 import cv2
 import app.color_print as cp
 import os
-from traceback import print_exc
+import logging
+import traceback
 from app.pdf import open_with_debug, workorders, move_file
 
 
-def reorient_pdf_for_workorders(filepath: str, REJECT_DIR: str) -> list:
+# TODO: Unify the return type of this function. Right now it returns a dict if no work order numbers are found in the file name, and a list if work order numbers are found in the file name. This is confusing and should be fixed.
+def reorient_pdf_for_workorders(
+    filepath: str, REJECT_DIR: str
+) -> dict[Any, Any] | list[Any] | bool:
     file_name = os.path.basename(filepath)
     try:
         cp.white("Checking orientation of PDF file..." + file_name)
@@ -39,13 +45,12 @@ def reorient_pdf_for_workorders(filepath: str, REJECT_DIR: str) -> list:
             return False
     except FileNotFoundError as e:
         cp.red(f"Error: {filepath} not found. {e}")
-        return False
     except Exception as e:
         cp.red(f"Error: {e}\nFile: {file_name}")
-        return False
+    return False
 
 
-def get_pdf_orientation(filepath):
+def get_pdf_orientation(filepath) -> int | None:
     image = convert_pdf_to_image(filepath)
     grayscale_image = convert_to_grayscale(image)
     text_orientation = get_text_orientation(grayscale_image)
@@ -99,7 +104,7 @@ def get_text_orientation(image):
         return None
 
 
-def get_visual_orientation(image):
+def get_visual_orientation(image) -> int | None:
     try:
         edges = cv2.Canny(np.array(image), 50, 150)  # Image needs to be a NumPy array
         lines = cv2.HoughLines(
@@ -121,7 +126,7 @@ def get_visual_orientation(image):
             orientation_counts
         )  # Get the orientation with the most counts
 
-        return dominant_orientation
+        return int(dominant_orientation)
     except Exception as e:
         cp.red(e)
         return None
@@ -154,6 +159,7 @@ def rotate_pdf(filepath, degrees=180):
                 writer.write(output_file)
         cp.green(f'"{file_name}" rotated successfully.')
         return True
-    except Exception:
-        print_exc()
+    except Exception as e:
+        cp.red(e)
+        logging.debug(traceback.format_exc())
         return False
