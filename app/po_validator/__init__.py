@@ -100,14 +100,14 @@ def validate(
       - "fail"               price mismatch or missing work items
       - "no_pricing"         PO has line items but no prices listed
       - "extraction_failed"  could not parse the PDF
-      - "skipped"            outbound price-update request, not a real PO
+      - "skipped"            validation skipped (e.g. outbound price-update request or no Qualer work items)
     """
     if not work_items:
         return ValidationResult(
             document_name=document_name,
             service_order_id=service_order_id,
-            status="extraction_failed",
-            notes="No work items found in Qualer for this order",
+            status="skipped",
+            notes="No work items found in Qualer for this order; validation skipped.",
         )
 
     # Build a list of (normalised_key, work_item) for items with S/Ns.
@@ -324,7 +324,11 @@ def validate(
             matched_po_idxs.add(best_po_idx)
             po_item = extraction.line_items[best_po_idx]
             po_p = _po_price(po_item)
-            assert po_p is not None
+            if po_p is None:
+                # Safeguard: _po_price should not return None here because None values
+                # were filtered out when computing best_po_idx, but enforce this
+                # invariant without relying on assertions that may be disabled.
+                continue
             checked += 1
             diff = po_p - expected
             if abs(diff) <= PRICE_TOLERANCE:

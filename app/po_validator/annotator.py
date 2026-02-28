@@ -12,11 +12,7 @@ import logging
 import os as _os
 import sys
 from pathlib import Path
-from typing import Literal, TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
-
+from typing import Literal
 import fitz  # PyMuPDF
 
 from .models import ValidationResult
