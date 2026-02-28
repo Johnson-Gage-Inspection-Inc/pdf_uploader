@@ -1,6 +1,5 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import os  # noqa: F401 -- used in test patches
 import sys
 
 # Mock app modules BEFORE importing upload.
