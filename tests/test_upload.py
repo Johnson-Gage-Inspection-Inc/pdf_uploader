@@ -175,5 +175,133 @@ class TestHandlePOUpload(unittest.TestCase):
         self.assertEqual(new_filepath, "/path/to/file.pdf")
 
 
+class TestGetEnv(unittest.TestCase):
+    """Test the getEnv function for credential retrieval."""
+
+    @patch.dict(
+        os.environ,
+        {"QUALER_EMAIL": "env@test.com", "QUALER_PASSWORD": "env_pass"},
+    )
+    def test_getenv_from_environment(self):
+        from upload import getEnv
+
+        result = getEnv()
+        self.assertEqual(result, ("env@test.com", "env_pass"))
+
+    @patch("upload.load_dotenv")
+    @patch("os.path.exists", return_value=True)
+    @patch.dict(os.environ, {}, clear=True)
+    def test_getenv_from_dotenv(self, mock_exists, mock_load):
+        from upload import getEnv
+
+        def set_env(*args, **kwargs):
+            os.environ["QUALER_EMAIL"] = "dotenv@test.com"
+            os.environ["QUALER_PASSWORD"] = "dotenv_pass"
+
+        mock_load.side_effect = set_env
+        result = getEnv()
+        self.assertEqual(result, ("dotenv@test.com", "dotenv_pass"))
+
+    @patch("upload.load_dotenv")
+    @patch("os.path.exists", return_value=False)
+    @patch.dict(os.environ, {}, clear=True)
+    def test_getenv_no_credentials_raises(self, mock_exists, mock_load):
+        from upload import getEnv
+
+        with self.assertRaises(ValueError):
+            getEnv()
+
+
+class TestRenameFileEdgeCases(unittest.TestCase):
+    @patch("upload.pdf.increment_filename")
+    @patch("upload.pdf.try_rename")
+    def test_rename_file_max_attempts(self, mock_try_rename, mock_increment):
+        """Test rename_file when all attempts fail."""
+        mock_increment.return_value = "/path/to/file_1.pdf"
+        mock_try_rename.return_value = False
+
+        result = rename_file("/path/to/file.pdf", [])
+        # Should return original filepath after exhausting attempts
+        self.assertEqual(result, "/path/to/file.pdf")
+
+    @patch("upload.pdf.increment_filename")
+    @patch("upload.pdf.try_rename", side_effect=FileNotFoundError)
+    def test_rename_file_not_found_raises(self, mock_try_rename, mock_increment):
+        mock_increment.return_value = "/path/to/file_1.pdf"
+
+        with self.assertRaises(FileNotFoundError):
+            rename_file("/path/to/file.pdf", [])
+
+
+class TestUploadWithRenameEdgeCases(unittest.TestCase):
+    @patch("upload.api.upload")
+    @patch("upload.api.get_service_order_document_list", return_value=None)
+    def test_upload_with_rename_none_doc_list(self, mock_get_docs, mock_upload):
+        """When doc list is None, should still proceed."""
+        mock_upload.return_value = (True, "/path/to/file.pdf")
+
+        result, filepath = upload_with_rename("/path/to/file.pdf", "SO123", "DOC_TYPE")
+        self.assertTrue(result)
+
+    @patch("upload.api.upload", side_effect=FileExistsError)
+    @patch("upload.api.get_service_order_document_list", return_value=[])
+    def test_upload_with_rename_file_exists_error(self, mock_get_docs, mock_upload):
+        """FileExistsError during upload should return False."""
+        result, filepath = upload_with_rename("/path/to/file.pdf", "SO123", "DOC_TYPE")
+        self.assertFalse(result)
+
+
+class TestUploadByPoEdgeCases(unittest.TestCase):
+    @patch("upload.upload_with_rename")
+    @patch("os.path.isfile")
+    def test_upload_by_po_partial_failure(self, mock_isfile, mock_upload):
+        """Test when some SOs succeed and some fail."""
+        mock_isfile.return_value = True
+        mock_upload.side_effect = [
+            (True, "/path/to/file.pdf"),
+            (False, "/path/to/file.pdf"),
+        ]
+
+        po_dict = {"PO123": ["SO1", "SO2"]}
+        success, failed, filepath = upload_by_po(
+            "/path/to/file.pdf", "PO123", po_dict, "DOC_TYPE"
+        )
+        self.assertEqual(success, ["SO1"])
+        self.assertEqual(failed, ["SO2"])
+
+    @patch("upload.upload_with_rename", side_effect=FileNotFoundError)
+    @patch("os.path.isfile", return_value=True)
+    def test_upload_by_po_file_not_found(self, mock_isfile, mock_upload):
+        po_dict = {"PO123": ["SO1"]}
+        success, failed, filepath = upload_by_po(
+            "/path/to/file.pdf", "PO123", po_dict, "DOC_TYPE"
+        )
+        self.assertEqual(success, [])
+
+    @patch("os.path.isfile", return_value=False)
+    def test_upload_by_po_file_missing(self, mock_isfile):
+        po_dict = {"PO123": ["SO1"]}
+        success, failed, filepath = upload_by_po(
+            "/path/to/file.pdf", "PO123", po_dict, "DOC_TYPE"
+        )
+        self.assertEqual(success, [])
+        self.assertEqual(failed, ["SO1"])
+
+
+class TestFetchSOAndUploadEdgeCases(unittest.TestCase):
+    @patch("upload.api.getServiceOrderId", return_value=None)
+    @patch("os.path.isfile", return_value=True)
+    def test_fetch_so_no_service_order(self, mock_isfile, mock_get_so):
+        """When service order is not found, should return False."""
+        result, filepath = fetch_SO_and_upload("WO999", "/path/to/file.pdf", "DOC_TYPE")
+        self.assertFalse(result)
+
+    @patch("upload.api.getServiceOrderId", side_effect=FileNotFoundError)
+    @patch("os.path.isfile", return_value=True)
+    def test_fetch_so_exception(self, mock_isfile, mock_get_so):
+        result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
+        self.assertFalse(result)
+
+
 if __name__ == "__main__":
     unittest.main()
