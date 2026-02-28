@@ -1,7 +1,7 @@
 """Dashboard tab: summary counters + processed files table + folder status."""
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import Qt, QUrl
+from PyQt6.QtGui import QColor, QDesktopServices
 from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
@@ -11,11 +11,14 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
+    QHeaderView,
 )
+
+QUALER_SO_URL = "https://jgiquality.qualer.com/ServiceOrder/Info"
 
 
 class SummaryBar(QWidget):
-    """Horizontal bar showing today's summary counts."""
+    """Horizontal bar showing today's upload-focused summary counts."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -23,17 +26,17 @@ class SummaryBar(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
 
         self.total_label = self._make_label("Total: 0")
-        self.pass_label = self._make_label("Pass: 0", "green")
-        self.fail_label = self._make_label("Fail: 0", "red")
-        self.error_label = self._make_label("Errors: 0", "darkred")
-        self.skip_label = self._make_label("Skipped: 0", "gray")
+        self.uploaded_label = self._make_label("Uploaded: 0", "green")
+        self.failed_label = self._make_label("Failed: 0", "red")
+        self.no_order_label = self._make_label("No Order: 0", "orange")
+        self.processing_label = self._make_label("Processing: 0", "steelblue")
 
         for lbl in [
             self.total_label,
-            self.pass_label,
-            self.fail_label,
-            self.error_label,
-            self.skip_label,
+            self.uploaded_label,
+            self.failed_label,
+            self.no_order_label,
+            self.processing_label,
         ]:
             layout.addWidget(lbl)
 
@@ -48,29 +51,28 @@ class SummaryBar(QWidget):
 
     def update_counts(self, events):
         total = len(events)
-        passed = sum(
+        uploaded = sum(1 for e in events if not e.pending and e.success)
+        processing = sum(1 for e in events if e.pending)
+        no_order = sum(
             1
             for e in events
-            if e.validation_result and e.validation_result.status == "pass"
+            if not e.pending
+            and not e.success
+            and e.error_message == "No work orders found"
         )
         failed = sum(
             1
             for e in events
-            if e.validation_result and e.validation_result.status == "fail"
-        )
-        errors = sum(1 for e in events if not e.success)
-        skipped = sum(
-            1
-            for e in events
-            if e.validation_result
-            and e.validation_result.status in ("skipped", "no_pricing")
+            if not e.pending
+            and not e.success
+            and e.error_message != "No work orders found"
         )
 
         self.total_label.setText(f"Total: {total}")
-        self.pass_label.setText(f"Pass: {passed}")
-        self.fail_label.setText(f"Fail: {failed}")
-        self.error_label.setText(f"Errors: {errors}")
-        self.skip_label.setText(f"Skipped: {skipped}")
+        self.uploaded_label.setText(f"Uploaded: {uploaded}")
+        self.failed_label.setText(f"Failed: {failed}")
+        self.no_order_label.setText(f"No Order: {no_order}")
+        self.processing_label.setText(f"Processing: {processing}")
 
 
 class DashboardWidget(QWidget):
@@ -88,20 +90,21 @@ class DashboardWidget(QWidget):
 
         # Processed files table
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
+        self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(
-            ["Time", "Filename", "Status", "SO#", "PO#", "Details"]
+            ["Time", "Filename", "Upload", "Validation", "SO#", "PO#", "Details"]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
-        header = self.table.horizontalHeader()
+        header: QHeaderView = self.table.horizontalHeader()
         header.setStretchLastSection(True)
         self.table.setColumnWidth(0, 70)
         self.table.setColumnWidth(1, 220)
-        self.table.setColumnWidth(2, 80)
-        self.table.setColumnWidth(3, 80)
-        self.table.setColumnWidth(4, 80)
+        self.table.setColumnWidth(2, 85)
+        self.table.setColumnWidth(3, 85)
+        self.table.setColumnWidth(4, 120)
+        self.table.setColumnWidth(5, 80)
         layout.addWidget(self.table)
 
         # Watched folders status
@@ -110,32 +113,51 @@ class DashboardWidget(QWidget):
         layout.addWidget(self.folder_status)
 
     def add_event(self, event):
-        """Add a ProcessingEvent to the dashboard."""
+        """Add or update a ProcessingEvent on the dashboard.
+
+        If the event is finished (not pending) and a pending event for the
+        same filename already exists, the pending row is replaced in place.
+        """
+        if not event.pending:
+            # Replace the matching pending event if one exists
+            for i, existing in enumerate(self._events):
+                if existing.pending and existing.filename == event.filename:
+                    self._events[i] = event
+                    self._refresh_table()
+                    self.summary_bar.update_counts(self._events)
+                    return
+
         self._events.insert(0, event)
         self._refresh_table()
         self.summary_bar.update_counts(self._events)
 
     def set_watched_folders(self, folders, statuses=None):
-        """Update the watched folders section."""
+        """Update the watched folders section with clickable links."""
         # Clear existing
         while self.folder_layout.count():
             child = self.folder_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
 
-        for i, folder in enumerate(folders):
+        for folder in folders:
             status = (
                 "Watching"
                 if statuses is None or statuses.get(folder, True)
                 else "Stopped"
             )
             color = "green" if status == "Watching" else "red"
-            # Use just the folder name, not the full path
             short_name = folder.rstrip("/\\").rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
             lbl = QLabel(
-                f'<span style="color:{color};">&#9679;</span> {short_name} - {status}'
+                f'<span style="color:{color};">&#9679;</span> '
+                f'<a href="{folder}" style="color: #0078D4;">{short_name}</a>'
+                f" - {status}"
             )
+            lbl.linkActivated.connect(self._open_folder)
             self.folder_layout.addWidget(lbl)
+
+    def _open_folder(self, path):
+        """Open a folder in the system file explorer."""
+        QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def _refresh_table(self):
         self.table.setRowCount(len(self._events))
@@ -148,27 +170,43 @@ class DashboardWidget(QWidget):
             # Filename
             self.table.setItem(row, 1, QTableWidgetItem(event.filename))
 
-            # Status
-            status_text = self._status_text(event)
-            status_item = QTableWidgetItem(status_text)
-            status_item.setForeground(self._status_color(event))
-            self.table.setItem(row, 2, status_item)
+            # Upload status
+            upload_text = self._upload_status_text(event)
+            upload_item = QTableWidgetItem(upload_text)
+            upload_item.setForeground(self._upload_status_color(event))
+            self.table.setItem(row, 2, upload_item)
 
-            # SO#
-            so_ids = ", ".join(str(s) for s in event.service_order_ids)
-            self.table.setItem(row, 3, QTableWidgetItem(so_ids))
+            # Validation status
+            val_text, val_color = self._validation_status(event)
+            val_item = QTableWidgetItem(val_text)
+            if val_color:
+                val_item.setForeground(val_color)
+            self.table.setItem(row, 3, val_item)
+
+            # SO# as clickable hyperlinks
+            if event.service_order_ids:
+                so_label = QLabel()
+                links = []
+                for so_id in event.service_order_ids:
+                    url = f"{QUALER_SO_URL}/{so_id}"
+                    links.append(f'<a href="{url}">{so_id}</a>')
+                so_label.setText("  ".join(links))
+                so_label.setOpenExternalLinks(True)
+                self.table.setCellWidget(row, 4, so_label)
+            else:
+                self.table.setItem(row, 4, QTableWidgetItem(""))
 
             # PO#
             po_num = ""
             if event.validation_result:
                 po_num = event.validation_result.po_number
-            self.table.setItem(row, 4, QTableWidgetItem(po_num))
+            self.table.setItem(row, 5, QTableWidgetItem(po_num))
 
             # View button for validation results
             if event.validation_result:
                 btn = QPushButton("View")
                 btn.clicked.connect(lambda checked, e=event: self._show_detail(e))
-                self.table.setCellWidget(row, 5, btn)
+                self.table.setCellWidget(row, 6, btn)
 
     def _show_detail(self, event):
         from app.gui.detail_dialog import DetailDialog
@@ -176,21 +214,37 @@ class DashboardWidget(QWidget):
         dialog = DetailDialog(event, self)
         dialog.exec()
 
-    def _status_text(self, event):
-        if event.validation_result:
-            return event.validation_result.status.upper()
-        return "OK" if event.success else "ERROR"
+    def _upload_status_text(self, event):
+        if event.pending:
+            return "Processing"
+        if event.success:
+            return "Uploaded"
+        if event.error_message == "No work orders found":
+            return "No Order"
+        return "Failed"
 
-    def _status_color(self, event):
-        if event.validation_result:
-            return {
-                "pass": QColor("green"),
-                "fail": QColor("red"),
-                "no_pricing": QColor("orange"),
-                "extraction_failed": QColor("darkred"),
-                "skipped": QColor("gray"),
-            }.get(event.validation_result.status, QColor("black"))
-        return QColor("green") if event.success else QColor("red")
+    def _upload_status_color(self, event):
+        if event.pending:
+            return QColor("steelblue")
+        if event.success:
+            return QColor("green")
+        if event.error_message == "No work orders found":
+            return QColor("orange")
+        return QColor("red")
+
+    def _validation_status(self, event):
+        """Return (text, color) for the validation column."""
+        if not event.validation_result:
+            return ("", None)
+        status = event.validation_result.status
+        color_map = {
+            "pass": QColor("green"),
+            "fail": QColor("red"),
+            "no_pricing": QColor("orange"),
+            "extraction_failed": QColor("darkred"),
+            "skipped": QColor("gray"),
+        }
+        return (status.upper(), color_map.get(status, QColor("black")))
 
     def get_event_count(self):
         return len(self._events)

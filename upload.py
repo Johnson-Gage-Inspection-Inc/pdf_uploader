@@ -197,6 +197,17 @@ def process_file(filepath: str, qualer_parameters: tuple):
         raise FileNotFoundError(f"File not found: {filepath}")
 
     cp.blue(f"Processing file: {filepath}")
+
+    # Emit processing-started signal for GUI
+    try:
+        from app.event_bus import get_bus
+
+        bus = get_bus()
+        if bus:
+            bus.file_processing_started.emit(filepath)
+    except Exception:
+        pass
+
     # unpack parameters
     INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters[:4]
     VALIDATE_PO = qualer_parameters[4] if len(qualer_parameters) > 4 else False

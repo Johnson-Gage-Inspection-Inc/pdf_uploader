@@ -1,5 +1,8 @@
 """Main application window with tabs, menu bar, status bar, and system tray."""
 
+import os
+from datetime import datetime
+
 from PyQt6.QtWidgets import (
     QDialog,
     QLabel,
@@ -9,7 +12,7 @@ from PyQt6.QtWidgets import (
 )
 
 from app.config_manager import get_config
-from app.event_bus import EventBus
+from app.event_bus import EventBus, ProcessingEvent
 from app.gui.dashboard_widget import DashboardWidget
 from app.gui.log_widget import LogWidget
 from app.gui.resources import get_app_icon
@@ -50,6 +53,7 @@ class MainWindow(QMainWindow):
         self.tray = TrayIcon(self)
 
         # Connect signals
+        self.event_bus.file_processing_started.connect(self._on_file_started)
         self.event_bus.file_processing_finished.connect(self._on_file_processed)
         self.event_bus.log_message.connect(self.log_widget.append_message)
         self.event_bus.watcher_started.connect(self._on_watcher_started)
@@ -70,6 +74,17 @@ class MainWindow(QMainWindow):
 
         help_menu = self.menuBar().addMenu("&Help")
         help_menu.addAction("&About", self._show_about)
+
+    def _on_file_started(self, filepath):
+        """Show a 'Processing' row on the dashboard when a file starts."""
+        event = ProcessingEvent(
+            filepath=filepath,
+            filename=os.path.basename(filepath),
+            timestamp=datetime.now(),
+            success=False,
+            pending=True,
+        )
+        self.dashboard.add_event(event)
 
     def _on_file_processed(self, event):
         self.dashboard.add_event(event)

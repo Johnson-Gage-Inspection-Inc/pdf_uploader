@@ -29,6 +29,7 @@ class ProcessingEvent:
     error_message: str = ""
     validation_result: object = None  # Optional[ValidationResult]
     folder_label: str = ""
+    pending: bool = False
 
 
 class EventBus(QObject):
