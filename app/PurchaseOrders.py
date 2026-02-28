@@ -8,6 +8,7 @@ import app.api as api
 import app.color_print as cp
 from app.config import PO_DICT_FILE
 import re
+from qualer_sdk.models import ServiceOrdersToClientOrderResponseModel
 
 DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
@@ -21,13 +22,15 @@ def get_work_order_number(service_order_id: int) -> Optional[str]:
     return _so_to_wo.get(service_order_id)
 
 
-def update_dict(lookup: dict, response: list) -> dict:
+def update_dict(
+    lookup: dict, response: list[ServiceOrdersToClientOrderResponseModel]
+) -> dict:
     for so in response:
         PrimaryPo = so.po_number
         SecondaryPo = so.secondary_po
         ServiceOrderId = so.service_order_id
         # Cache the SO -> WO mapping for GUI display
-        wo = getattr(so, "custom_order_number", None)
+        wo = so.custom_order_number
         if wo and ServiceOrderId:
             _so_to_wo[ServiceOrderId] = wo
         if PrimaryPo not in lookup:

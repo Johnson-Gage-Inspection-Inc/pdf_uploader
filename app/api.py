@@ -16,6 +16,10 @@ from qualer_sdk.types import File
 from typing import List, Optional
 import json
 from app.qualer_client import make_qualer_client
+from qualer_sdk.models import (
+    ServiceOrdersToClientOrderResponseModel,
+    ServiceOrdersToClientOrderItemResponseModel,
+)
 
 ERROR_FLAG = "ERROR:"
 
@@ -45,7 +49,7 @@ def get_service_orders(
     to: Optional[str] = None,
     modified_after: Optional[str] = None,
     status: Optional[str] = None,
-) -> list:
+) -> list[ServiceOrdersToClientOrderResponseModel]:
     """Fetch service orders from the Qualer API.
 
     Args:
@@ -242,7 +246,9 @@ def get_service_order_document_list(ServiceOrderId: int) -> Optional[List[str]]:
     return file_names
 
 
-def get_work_items(service_order_id: int) -> list:
+def get_work_items(
+    service_order_id: int,
+) -> list[ServiceOrdersToClientOrderItemResponseModel]:
     """Fetch work items for a service order from the Qualer API.
 
     Args:
