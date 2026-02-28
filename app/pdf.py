@@ -1,5 +1,7 @@
 # /app/pdf.py
 
+from typing import Any
+
 from pdf2image import convert_from_path
 from pypdf import PdfReader, PdfWriter
 from pytesseract import pytesseract, image_to_string
@@ -129,7 +131,8 @@ def create_child_pdf(filepath, pg_nums, output_path):
 
 # extract work orders from pdf, create a set of pages for each work order
 # append pages with no work order to the previous work order.
-def workorders(filepath):
+# TODO: Make the return type consistent. Right now it returns a dict if no work order numbers are found in the file name, and a list if work order numbers are found in the file name. This is confusing and should be fixed.
+def workorders(filepath) -> dict | list[Any]:
     order_number = ""
     fileorders = findall(WO_NUM_FORMAT, filepath)  # Find order numbers in file name
 
@@ -138,7 +141,7 @@ def workorders(filepath):
         return fileorders
 
     pages = extract(filepath)  # Get list of text from PDF
-    scannedorders = {}  # Create empty dictionary for order numbers
+    scannedorders: dict[str, set[int]] = {}  # Create empty dictionary for order numbers
     for page_index, page in enumerate(pages):
         order_numbers = findall(WO_NUM_FORMAT, page)  # Find order numbers in page
         # Use new order number if found
@@ -173,7 +176,7 @@ def increment_filename(old_filename):
 
 
 # Move the file to the reject directory
-def move_file(filepath, output_dir):
+def move_file(filepath, output_dir) -> str | bool:
     file_name = os.path.basename(filepath)
     new_filepath = os.path.join(output_dir, file_name)
     attempt = 0
@@ -194,9 +197,7 @@ def move_file(filepath, output_dir):
             print()
             new_filepath = increment_filename(new_filepath)
             attempt += 1
-        except (
-            FileNotFoundError
-        ) as e:
+        except FileNotFoundError as e:
             # This probably means the file was already moved by another process
             # (Perhaps another instance of this script is running?)
             cp.red(e)

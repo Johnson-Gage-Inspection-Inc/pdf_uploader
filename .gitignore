@@ -5,3 +5,5 @@ dist/
 build/
 .env
 temp.*
+.mypy_cache/
+.vscode/settings.json

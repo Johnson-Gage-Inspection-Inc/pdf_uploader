@@ -29,47 +29,49 @@ except FileNotFoundError:
 init()  # Initialize colorama
 
 
-def _color(text, color):
+def _color(text: str | Exception, color):
+    if isinstance(text, Exception):
+        text = f"{text.__class__.__name__}: {text}"
     assert color in Fore.__dict__, f"Invalid color: {color}"
     print(Fore.__dict__[color.upper()] + str(text) + Style.RESET_ALL)
 
 
-def black(text=""):  # Headers
+def black(text: str | Exception = ""):  # Headers
     logging.debug(text)
     _color(text, "BLACK")
 
 
-def red(text=""):  # Errors and exceptions
+def red(text: str | Exception = ""):  # Errors and exceptions
     logging.error(text)
     _color(text, "RED")
 
 
-def green(text=""):  # Successful
+def green(text: str | Exception = ""):  # Successful
     logging.debug(text)
     _color(text, "GREEN")
 
 
-def yellow(text=""):  # Warnings, notices, alerts
+def yellow(text: str | Exception = ""):  # Warnings, notices, alerts
     logging.warning(text)
     _color(text, "YELLOW")
 
 
-def blue(text=""):  # Informational
+def blue(text: str | Exception = ""):  # Informational
     logging.info(text)
     _color(text, "BLUE")
 
 
 def magenta(
-    text="",
+    text: str | Exception = "",
 ):  # special or significant information, such as system status updates or important notices.
     logging.info(text)
     _color(text, "MAGENTA")
 
 
-def cyan(text=""):  # Prompts, user input
+def cyan(text: str | Exception = ""):  # Prompts, user input
     _color(text, "CYAN")
 
 
-def white(text=""):  # Default
+def white(text: str | Exception = ""):  # Default
     logging.debug(text)
     _color(text, "WHITE")

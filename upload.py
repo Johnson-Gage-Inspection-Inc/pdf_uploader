@@ -20,7 +20,13 @@ import app.color_print as cp
 from app.PurchaseOrders import update_PO_numbers, extract_po
 import app.api as api
 import app.pdf as pdf
-from app.config import QUALER_STAGING_ENDPOINT, DEBUG, LIVEAPI, QUALER_ENDPOINT, LOG_FILE
+from app.config import (
+    QUALER_STAGING_ENDPOINT,
+    DEBUG,
+    LIVEAPI,
+    QUALER_ENDPOINT,
+    LOG_FILE,
+)
 from dotenv import load_dotenv
 from app.orientation import reorient_pdf_for_workorders
 import logging
@@ -55,7 +61,9 @@ def getEnv():
 
     # If not found, try loading from .env file
     base_path = (
-        sys._MEIPASS if getattr(sys, "frozen", False) else os.path.dirname(__file__)
+        sys._MEIPASS
+        if getattr(sys, "frozen", False)
+        else os.path.dirname(__file__)
     )
     dotenv_path = os.path.join(base_path, ".env")
     if os.path.exists(dotenv_path):
@@ -80,7 +88,7 @@ def rename_file(filepath: str, doc_list: list) -> str:
             new_filepath = pdf.increment_filename(new_filepath)
             new_filename = os.path.basename(new_filepath)
             # If the file does not exist in Qualer, upload it
-            if (new_filename not in doc_list):
+            if new_filename not in doc_list:
                 # Try to rename the file
                 did_rename = pdf.try_rename(filepath, new_filepath)
             attempts -= 1
@@ -102,16 +110,20 @@ def upload_with_rename(
     doc_list = api.get_service_order_document_list(
         QUALER_ENDPOINT, token, serviceOrderId
     )  # get list of documents for the service order
+    if doc_list is None:
+        doc_list = []
     new_filepath = (
         rename_file(filepath, doc_list) if file_name in doc_list else filepath
     )  # if the file already exists in Qualer, rename it
     try:
         if DEBUG:
             cp.yellow("debug mode, no uploads")
-        uploadResult, new_filepath = api.upload(token, new_filepath, serviceOrderId, doc_type)
+        uploadResult, new_filepath = api.upload(
+            token, new_filepath, serviceOrderId, doc_type
+        )
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
-        uploadResult = False, filepath
+        uploadResult = False
     return uploadResult, new_filepath
 
 
@@ -144,7 +156,9 @@ def upload_by_po(
         cp.yellow(f"PO# {po} not found in Qualer.")
         return [], [], filepath
     serviceOrderIds = dict[po]
-    cp.green(f"Found {len(serviceOrderIds)} service orders for PO {po}: {serviceOrderIds}")
+    cp.green(
+        f"Found {len(serviceOrderIds)} service orders for PO {po}: {serviceOrderIds}"
+    )
     successSOs = []
     failedSOs = []
     for serviceOrderId in serviceOrderIds:
@@ -180,9 +194,8 @@ def process_file(filepath: str, qualer_parameters: tuple):
     # unpack parameters
     INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters
 
-    global noworkorders
     global total
-    new_filepath = False
+    new_filepath: str | bool = False
     total += 1
     filename = os.path.basename(filepath)
     uploadResult = False
@@ -193,63 +206,70 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     if not uploadResult:
         # Check for work orders in file body or file name
-        workorders = pdf.workorders(filepath)
-        if not workorders:
-            workorders = reorient_pdf_for_workorders(filepath, REJECT_DIR)
-        if not workorders:
+        workorders_result: dict | list | bool = pdf.workorders(filepath)
+        if not workorders_result:
+            workorders_result = reorient_pdf_for_workorders(filepath, REJECT_DIR)
+        if not workorders_result:
             return False
 
         # if work orders found in filename, upload file to Qualer endpoint(s)
-        if isinstance(workorders, list):
+        if isinstance(workorders_result, list):
             cp.green(
-                f"Work order(s) found in file name: {workorders}"
+                f"Work order(s) found in file name: {workorders_result}"
             )  # Print the work order numbers
-            for workorder in workorders:  # loop through work orders list and upload
+            for (
+                workorder
+            ) in workorders_result:  # loop through work orders list and upload
                 uploadResult, new_filepath = fetch_SO_and_upload(
                     workorder, filepath, QUALER_DOCUMENT_TYPE
                 )  # upload file
 
-        elif (
-            len(workorders) == 1
-        ):  # One work order was found in the file body (dict object of length 1)
-            workorder = list(workorders.keys())[0]  # Get the work order number
-            cp.green(
-                f"One (1) work order found within file: {workorder}"
-            )  # Print the work order number
-            uploadResult, new_filepath = fetch_SO_and_upload(
-                workorder, filepath, QUALER_DOCUMENT_TYPE
-            )  # Upload the file
+        elif isinstance(workorders_result, dict):
+            if (
+                len(workorders_result) == 1
+            ):  # One work order was found in the file body (dict object of length 1)
+                workorder = list(workorders_result.keys())[
+                    0
+                ]  # Get the work order number
+                cp.green(
+                    f"One (1) work order found within file: {workorder}"
+                )  # Print the work order number
+                uploadResult, new_filepath = fetch_SO_and_upload(
+                    workorder, filepath, QUALER_DOCUMENT_TYPE
+                )  # Upload the file
 
-        else:  # For multiple work orders,
-            cp.green(
-                f"Multiple work orders found within file: {workorders}"
-            )  # Print the work order numbers
-            for (
-                workorder,
-                pg_nums,
-            ) in workorders.items():  # loop through the workorders dict object,
-                now = datetime.now().strftime(
-                    "%Y%m%dT%H%M%S"
-                )  # get the current date and time,
-                child_pdf_path = f"{INPUT_DIR}/scanned_doc_{workorder}_{now}.pdf"
-                pdf.create_child_pdf(
-                    filepath, pg_nums, child_pdf_path
-                )  # extract relevant pages from PDF, and
-                uploadResult, new_child_pdf_path = fetch_SO_and_upload(
-                    workorder, child_pdf_path, QUALER_DOCUMENT_TYPE
-                )  # upload extracted pages
-                child_pdf_path = (
-                    new_child_pdf_path if new_child_pdf_path else child_pdf_path
-                )  # if the file was renamed, update the filepath
-                try:
-                    # Remove child files after upload
-                    (
-                        os.remove(child_pdf_path)
-                        if uploadResult
-                        else cp.red(f"Failed to upload and remove {child_pdf_path}")
-                    )
-                except Exception as e:
-                    cp.red(e)
+            else:  # For multiple work orders,
+                cp.green(
+                    f"Multiple work orders found within file: {workorders_result}"
+                )  # Print the work order numbers
+                for (
+                    workorder,
+                    pg_nums,
+                ) in (
+                    workorders_result.items()
+                ):  # loop through the workorders dict object,
+                    now = datetime.now().strftime(
+                        "%Y%m%dT%H%M%S"
+                    )  # get the current date and time,
+                    child_pdf_path = f"{INPUT_DIR}/scanned_doc_{workorder}_{now}.pdf"
+                    pdf.create_child_pdf(
+                        filepath, pg_nums, child_pdf_path
+                    )  # extract relevant pages from PDF, and
+                    uploadResult, new_child_pdf_path = fetch_SO_and_upload(
+                        workorder, child_pdf_path, QUALER_DOCUMENT_TYPE
+                    )  # upload extracted pages
+                    child_pdf_path = (
+                        new_child_pdf_path if new_child_pdf_path else child_pdf_path
+                    )  # if the file was renamed, update the filepath
+                    try:
+                        # Remove child files after upload
+                        (
+                            os.remove(child_pdf_path)
+                            if uploadResult
+                            else cp.red(f"Failed to upload and remove {child_pdf_path}")
+                        )
+                    except Exception as e:
+                        cp.red(e)
 
     # If the upload still failed, move the file to the reject directory
     if not uploadResult and os.path.isfile(filepath):
@@ -258,7 +278,11 @@ def process_file(filepath: str, qualer_parameters: tuple):
         return False
 
     # If the file was renamed, update the filepath
-    if new_filepath:
+    if new_filepath is not False:
+        if not isinstance(new_filepath, str):
+            raise ValueError(
+                f"Expected new_filepath to be a string, got {type(new_filepath)}"
+            )
         filepath = new_filepath
 
     # Remove file if there were no failures
@@ -274,10 +298,11 @@ def process_file(filepath: str, qualer_parameters: tuple):
             except FileExistsError:
                 # Resolve naming conflict in the Archives folder
                 new_filepath = filepath
-                file_was_moved = False
-                while not file_was_moved:
+                while True:
                     new_filepath = pdf.increment_filename(new_filepath)
-                    file_was_moved = pdf.move_file(new_filepath, OUTPUT_DIR)
+                    result = pdf.move_file(new_filepath, OUTPUT_DIR)
+                    if result:
+                        break
             except Exception as e:
                 cp.red(e)
                 traceback.print_exc()
@@ -287,7 +312,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
             os.rename(filepath, pdf.increment_filename(filepath))
 
     except Exception as e:
-        cp.yellow("Failed to remove file:", filepath, e)
+        cp.yellow(f"Failed to remove file: {filepath} | {e}")
         logging.debug(traceback.format_exc())
 
 
@@ -296,8 +321,8 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
     po_dict = update_PO_numbers(token)
     cp.white("PO found in file name: " + po)
     successSOs, failedSOs, new_filepath = upload_by_po(
-            filepath, po, po_dict, QUALER_DOCUMENT_TYPE
-        )
+        filepath, po, po_dict, QUALER_DOCUMENT_TYPE
+    )
     uploadResult = False
     if successSOs:
         cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
@@ -312,6 +337,10 @@ if not LIVEAPI:
     cp.yellow("Using staging API")
 
 username, password = getEnv()
-token = api.login(QUALER_ENDPOINT, username, password)
+_token = api.login(QUALER_ENDPOINT, username, password)
+if not _token:
+    cp.red("Failed to obtain API token. Exiting.")
+    raise SystemExit
+token: str = _token
 
 total = 0

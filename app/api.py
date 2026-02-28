@@ -9,6 +9,7 @@ import app.pdf as pdf
 from app.config import QUALER_ENDPOINT
 from urllib3.exceptions import MaxRetryError
 from app.connectivity import check_connectivity
+from typing import Optional
 
 ERROR_FLAG = "ERROR:"
 
@@ -50,7 +51,6 @@ def login(endpoint, username, password):
             try:
                 response = json.loads(r.text)
                 if token := response.get("Token"):
-                    cp.green("Api-Token " + token)
                     return token
                 else:
                     cp.red(ERROR_FLAG)
@@ -80,7 +80,7 @@ def get_service_orders(data, token):
         return response
 
 
-def getServiceOrderId(token: str, workOrderNumber: str) -> str:
+def getServiceOrderId(token: str, workOrderNumber: str) -> Optional[str]:
     """Get the service order ID for a work order number.
 
     Args:
@@ -88,7 +88,7 @@ def getServiceOrderId(token: str, workOrderNumber: str) -> str:
         workOrderNumber (str): Work order number
 
     Returns:
-        str: _description_
+        Optional[str]: The service order ID, or None if not found.
     """
     cp.white("Fetching service order id for work order: " + workOrderNumber + "...")
     data = {"workOrderNumber": workOrderNumber}
@@ -98,15 +98,14 @@ def getServiceOrderId(token: str, workOrderNumber: str) -> str:
         if len(response) == 0:
             cp.red(ERROR_FLAG)
             cp.red(f"No service order found for work order: {workOrderNumber}")
-            return False
-        return response[0][
-            "ServiceOrderId"
-        ]  # Exception has occurred: IndexError (list index out of range)
+            return None
+        return response[0].get("ServiceOrderId")
     except Exception as e:
         handle_exception(e, response)
+        return None
 
 
-def upload(token, filepath, serviceOrderId, qualertype):
+def upload(token, filepath, serviceOrderId, qualertype) -> tuple[bool, str]:
     cp.white(f"Attempting upload for SO# {serviceOrderId}: '{path.basename(filepath)}'")
 
     # https://requests.readthedocs.io/en/latest/user/quickstart/#post-a-multipart-encoded-file
@@ -116,7 +115,7 @@ def upload(token, filepath, serviceOrderId, qualertype):
     if not path.exists(filepath):
         cp.red(ERROR_FLAG)
         cp.red(f"{filepath} does not exist")
-        return False
+        return False, filepath
     attempts = 0
 
     while attempts < 5:
@@ -169,6 +168,9 @@ def upload(token, filepath, serviceOrderId, qualertype):
             else:  # if r.status_code != 200
                 handle_error(r)
                 return False, filepath
+
+    # All retry attempts exhausted
+    return False, filepath
 
 
 # Function to get a list of documents for a service order
