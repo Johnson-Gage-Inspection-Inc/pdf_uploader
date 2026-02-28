@@ -105,7 +105,7 @@ def getServiceOrderId(token: str, workOrderNumber: str) -> Optional[str]:
         return None
 
 
-def upload(token, filepath, serviceOrderId, qualertype):
+def upload(token, filepath, serviceOrderId, qualertype) -> tuple[bool, str]:
     cp.white(f"Attempting upload for SO# {serviceOrderId}: '{path.basename(filepath)}'")
 
     # https://requests.readthedocs.io/en/latest/user/quickstart/#post-a-multipart-encoded-file
@@ -115,7 +115,7 @@ def upload(token, filepath, serviceOrderId, qualertype):
     if not path.exists(filepath):
         cp.red(ERROR_FLAG)
         cp.red(f"{filepath} does not exist")
-        return False
+        return False, filepath
     attempts = 0
 
     while attempts < 5:
@@ -168,6 +168,9 @@ def upload(token, filepath, serviceOrderId, qualertype):
             else:  # if r.status_code != 200
                 handle_error(r)
                 return False, filepath
+
+    # All retry attempts exhausted
+    return False, filepath
 
 
 # Function to get a list of documents for a service order

@@ -61,7 +61,9 @@ def getEnv():
 
     # If not found, try loading from .env file
     base_path = (
-        sys._MEIPASS if getattr(sys, "frozen", False) else os.path.dirname(__file__)
+        getattr(sys, "_MEIPASS")
+        if getattr(sys, "frozen", False)
+        else os.path.dirname(__file__)
     )
     dotenv_path = os.path.join(base_path, ".env")
     if os.path.exists(dotenv_path):
@@ -108,6 +110,8 @@ def upload_with_rename(
     doc_list = api.get_service_order_document_list(
         QUALER_ENDPOINT, token, serviceOrderId
     )  # get list of documents for the service order
+    if doc_list is None:
+        doc_list = []
     new_filepath = (
         rename_file(filepath, doc_list) if file_name in doc_list else filepath
     )  # if the file already exists in Qualer, rename it
@@ -119,7 +123,7 @@ def upload_with_rename(
         )
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
-        uploadResult = False, filepath
+        uploadResult = False
     return uploadResult, new_filepath
 
 
@@ -333,6 +337,10 @@ if not LIVEAPI:
     cp.yellow("Using staging API")
 
 username, password = getEnv()
-token = api.login(QUALER_ENDPOINT, username, password)
+_token = api.login(QUALER_ENDPOINT, username, password)
+if not _token:
+    cp.red("Failed to obtain API token. Exiting.")
+    raise SystemExit
+token: str = _token
 
 total = 0

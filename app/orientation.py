@@ -66,8 +66,8 @@ def convert_pdf_to_image(filepath):
     page = doc.load_page(
         0
     )  # It assumes you want to check the orientation of the first page
-    pix = page.get_pixmap(matrix=Matrix(300 / 72, 300 / 72))
-    image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+    pix = page.get_pixmap(matrix=Matrix(300 / 72, 300 / 72))  # type: ignore[attr-defined]
+    image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
     return image
 
 
@@ -114,9 +114,9 @@ def get_visual_orientation(image) -> int | None:
             return None  # No lines detected
         orientations = []  # In degrees
 
-        for line in lines:  # line = [[rho, theta]]
-            rho, theta = line[0]  # rho = distance from origin, theta = angle
-            angle = np.rad2deg(theta)  # Convert radians to degrees
+        for i in range(len(lines)):  # lines[i] = [[rho, theta]]
+            theta = float(lines[i][0][1])  # angle in radians
+            angle = float(np.rad2deg(theta))  # Convert radians to degrees
             orientations.append(angle)  # Add angle to list of orientations
 
         orientation_counts = np.bincount(
