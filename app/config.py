@@ -57,12 +57,14 @@ CONFIG = [
         "REJECT_DIR": SHAREPOINT_PATH
         + r"!!! Front Office Scanned Docs - HOLDING/No_Order_Found",
         "QUALER_DOCUMENT_TYPE": "General",
+        "VALIDATE_PO": True,
     },
     {
         "INPUT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs",
         "OUTPUT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs/Archives",
         "REJECT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs/No_Order_Found",
         "QUALER_DOCUMENT_TYPE": "ordercertificate",
+        "VALIDATE_PO": False,
     },
 ]
 

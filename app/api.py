@@ -11,6 +11,7 @@ from qualer_sdk.api.service_order_documents import (
     get_documents_list,
     upload_documents_post_2,
 )
+from qualer_sdk.api.service_order_items import get_work_items as _sdk_get_work_items
 from qualer_sdk.types import File
 from typing import List, Optional
 import json
@@ -233,3 +234,29 @@ def get_service_order_document_list(ServiceOrderId: int) -> Optional[List[str]]:
         f"Found {len(file_names)} documents at https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}"
     )
     return file_names
+
+
+def get_work_items(service_order_id: int) -> list:
+    """Fetch work items for a service order from the Qualer API.
+
+    Args:
+        service_order_id: The service order ID.
+
+    Returns:
+        A list of work item objects, or an empty list on error.
+    """
+    cp.white(f"Fetching work items for service order: {service_order_id}...")
+    try:
+        response = _sdk_get_work_items.sync(
+            service_order_id, client=make_qualer_client()
+        )
+    except Exception as e:
+        handle_exception(e)
+        return []
+
+    if response is None:
+        cp.yellow(f"No work items found for SO {service_order_id}")
+        return []
+
+    cp.white(f"Found {len(response)} work items for SO {service_order_id}")
+    return response
