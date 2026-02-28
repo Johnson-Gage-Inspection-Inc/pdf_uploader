@@ -1,4 +1,4 @@
-# integrations/qualer/client.py
+# app/qualer_client.py
 from os import getenv
 from threading import Lock
 from typing import Optional
