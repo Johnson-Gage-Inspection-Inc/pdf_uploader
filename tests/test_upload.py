@@ -76,6 +76,21 @@ class TestUploadWithRename(unittest.TestCase):
     @patch("upload.api.upload")
     @patch("upload.api.get_service_order_document_list")
     @patch("upload.rename_file")
+    def test_upload_with_rename_private_flag(
+        self, mock_rename, mock_get_docs, mock_upload
+    ):
+        # ensure the private argument is forwarded
+        mock_get_docs.return_value = []
+        mock_upload.return_value = (True, "/path/to/file.pdf")
+
+        upload_with_rename("/path/to/file.pdf", 123, "DOC_TYPE", private=True)
+        mock_upload.assert_called_once()
+        _, kwargs = mock_upload.call_args
+        self.assertTrue(kwargs.get("private"))
+
+    @patch("upload.api.upload")
+    @patch("upload.api.get_service_order_document_list")
+    @patch("upload.rename_file")
     def test_upload_with_rename_conflict(self, mock_rename, mock_get_docs, mock_upload):
         mock_get_docs.return_value = ["file.pdf"]
         mock_rename.return_value = "/path/to/file_1.pdf"
@@ -95,14 +110,36 @@ class TestFetchSOAndUpload(unittest.TestCase):
         mock_get_so.return_value = 12345
         mock_upload.return_value = (True, "/path/to/file.pdf")
 
-        result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO123", "/path/to/file.pdf", "DOC_TYPE"
+        )
         self.assertTrue(result)
+
+    @patch("upload.upload_with_rename")
+    @patch("upload.api.getServiceOrderId")
+    @patch("os.path.isfile")
+    def test_fetch_so_and_upload_private_flag(
+        self, mock_isfile, mock_get_so, mock_upload
+    ):
+        mock_isfile.return_value = True
+        mock_get_so.return_value = 12345
+        mock_upload.return_value = (True, "/path/to/file.pdf")
+
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO123", "/path/to/file.pdf", "DOC_TYPE", private=True
+        )
+        self.assertIsNotNone(result)
+        mock_upload.assert_called_once()
+        args, kwargs = mock_upload.call_args
+        self.assertTrue(kwargs.get("private"))
 
     @patch("os.path.isfile")
     def test_fetch_so_and_upload_file_not_found(self, mock_isfile):
         mock_isfile.return_value = False
 
-        result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO123", "/path/to/file.pdf", "DOC_TYPE"
+        )
         self.assertFalse(result)
 
 
@@ -119,6 +156,18 @@ class TestUploadByPO(unittest.TestCase):
         )
         self.assertEqual(success, ["SO1", "SO2"])
         self.assertEqual(failed, [])
+
+    @patch("upload.upload_with_rename")
+    @patch("os.path.isfile")
+    def test_upload_by_po_private_flag(self, mock_isfile, mock_upload):
+        mock_isfile.return_value = True
+        mock_upload.return_value = (True, "/path/to/file.pdf")
+
+        po_dict = {"PO123": ["SO1"]}
+        upload_by_po("/path/to/file.pdf", "PO123", po_dict, "DOC_TYPE", private=True)
+        mock_upload.assert_called_once()
+        args, kwargs = mock_upload.call_args
+        self.assertTrue(kwargs.get("private"))
 
     def test_upload_by_po_not_found(self):
         po_dict = {}
@@ -240,13 +289,17 @@ class TestFetchSOAndUploadEdgeCases(unittest.TestCase):
     @patch("os.path.isfile", return_value=True)
     def test_fetch_so_no_service_order(self, mock_isfile, mock_get_so):
         """When service order is not found, should return False."""
-        result, filepath = fetch_SO_and_upload("WO999", "/path/to/file.pdf", "DOC_TYPE")
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO999", "/path/to/file.pdf", "DOC_TYPE"
+        )
         self.assertFalse(result)
 
     @patch("upload.api.getServiceOrderId", side_effect=FileNotFoundError)
     @patch("os.path.isfile", return_value=True)
     def test_fetch_so_exception(self, mock_isfile, mock_get_so):
-        result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO123", "/path/to/file.pdf", "DOC_TYPE"
+        )
         self.assertFalse(result)
 
 
