@@ -10,8 +10,6 @@ This file is used to configure the PDF uploader. It contains the following varia
   - Set to True to delete PDF files that were processed before the current date.
   - Set to False to move them to their respective "Old PDFs" subdirectory.
 
-- LOGIN_USER: This is now stored in .env instead of here!
-- LOGIN_PASS: This is now stored in .env instead of here!
 - QUALER_ENDPOINT: The Qualer API endpoint that will be used to upload the PDF files.
 - QUALER_STAGING_ENDPOINT: The Qualer staging API endpoint which is used for testing.
 
