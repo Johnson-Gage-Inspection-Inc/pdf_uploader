@@ -1,9 +1,18 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 import gzip
 import json
 import tempfile
 import os
+
+
+def _make_so(po_number, secondary_po, service_order_id):
+    """Create a mock service order object with attribute access."""
+    so = MagicMock()
+    so.po_number = po_number
+    so.secondary_po = secondary_po
+    so.service_order_id = service_order_id
+    return so
 
 
 class TestUpdateDict(unittest.TestCase):
@@ -14,8 +23,8 @@ class TestUpdateDict(unittest.TestCase):
 
         lookup = {}
         response = [
-            {"PoNumber": "PO100", "SecondaryPo": None, "ServiceOrderId": "SO1"},
-            {"PoNumber": "PO200", "SecondaryPo": "SPO200", "ServiceOrderId": "SO2"},
+            _make_so("PO100", None, "SO1"),
+            _make_so("PO200", "SPO200", "SO2"),
         ]
         result = update_dict(lookup, response)
         self.assertEqual(result["PO100"], ["SO1"])
@@ -27,7 +36,7 @@ class TestUpdateDict(unittest.TestCase):
 
         lookup = {"PO100": ["SO1"]}
         response = [
-            {"PoNumber": "PO100", "SecondaryPo": None, "ServiceOrderId": "SO2"},
+            _make_so("PO100", None, "SO2"),
         ]
         result = update_dict(lookup, response)
         self.assertEqual(result["PO100"], ["SO1", "SO2"])
@@ -37,7 +46,7 @@ class TestUpdateDict(unittest.TestCase):
 
         lookup = {"PO100": ["SO1"]}
         response = [
-            {"PoNumber": "PO100", "SecondaryPo": None, "ServiceOrderId": "SO1"},
+            _make_so("PO100", None, "SO1"),
         ]
         result = update_dict(lookup, response)
         self.assertEqual(result["PO100"], ["SO1"])
@@ -54,7 +63,7 @@ class TestUpdateDict(unittest.TestCase):
 
         lookup = {}
         response = [
-            {"PoNumber": "PO100", "SecondaryPo": "", "ServiceOrderId": "SO1"},
+            _make_so("PO100", "", "SO1"),
         ]
         result = update_dict(lookup, response)
         self.assertIn("PO100", result)
@@ -65,7 +74,7 @@ class TestUpdateDict(unittest.TestCase):
 
         lookup = {}
         response = [
-            {"PoNumber": "PO100", "SecondaryPo": "PO100", "ServiceOrderId": "SO1"},
+            _make_so("PO100", "PO100", "SO1"),
         ]
         result = update_dict(lookup, response)
         self.assertEqual(result["PO100"], ["SO1"])
@@ -144,10 +153,11 @@ class TestUpdatePONumbers(unittest.TestCase):
     def test_file_not_found_rebuilds(self, mock_cp, mock_api, mock_save):
         from app.PurchaseOrders import update_PO_numbers
 
+        mock_client = MagicMock()
         with tempfile.TemporaryDirectory() as tmpdir:
             nonexistent = os.path.join(tmpdir, "missing.json.gz")
             with patch("app.PurchaseOrders.PO_DICT_FILE", nonexistent):
-                result = update_PO_numbers("test-token")
+                result = update_PO_numbers(mock_client)
         self.assertIsInstance(result, dict)
 
     @patch("app.PurchaseOrders.save_as_zip_file")
@@ -156,6 +166,7 @@ class TestUpdatePONumbers(unittest.TestCase):
     def test_valid_file_no_updates(self, mock_cp, mock_api, mock_save):
         from app.PurchaseOrders import update_PO_numbers
 
+        mock_client = MagicMock()
         test_data = {"PO100": ["SO1"]}
         with tempfile.NamedTemporaryFile(suffix=".json.gz", delete=False) as f:
             temp_path = f.name
@@ -163,7 +174,7 @@ class TestUpdatePONumbers(unittest.TestCase):
 
         try:
             with patch("app.PurchaseOrders.PO_DICT_FILE", temp_path):
-                result = update_PO_numbers("test-token")
+                result = update_PO_numbers(mock_client)
             self.assertEqual(result["PO100"], ["SO1"])
         finally:
             os.unlink(temp_path)

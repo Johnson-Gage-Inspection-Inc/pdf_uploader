@@ -1,116 +1,139 @@
 # app/api.py
 
-import json
 from os import path
 import traceback
-import requests
+import httpx
 import app.color_print as cp
 import app.pdf as pdf
-from app.config import QUALER_ENDPOINT
-from urllib3.exceptions import MaxRetryError
 from app.connectivity import check_connectivity
-from typing import Optional
+from qualer_sdk import AuthenticatedClient
+from qualer_sdk.api.service_orders import get_work_orders
+from qualer_sdk.api.service_order_documents import (
+    get_documents_list,
+)
+from typing import List, Optional
 
 ERROR_FLAG = "ERROR:"
 
 
-def handle_error(response):
+def handle_error(response: httpx.Response) -> None:
     cp.red(ERROR_FLAG)
     cp.red(f"STATUS CODE: {response.status_code}")
     cp.red(f"RESPONSE: {response.text}")
     return
 
 
-def handle_exception(exception, response=None):
+def handle_exception(exception, response=None) -> None:
     cp.red(ERROR_FLAG)
-    if isinstance(response, requests.Response):
+    if isinstance(response, httpx.Response):
         cp.red(f"STATUS CODE: {response.status_code}")
         cp.red(f"RESPONSE: {response.text}")
-    elif response:
+    elif response is not None:
         cp.red(f"Invalid response passed: {response}")
     cp.red(f"EXCEPTION: {exception}")
     traceback.print_exc()
 
 
-def login(endpoint, username, password):
-    endpoint = endpoint + "/login"
+def get_service_orders(
+    client: AuthenticatedClient,
+    *,
+    work_order_number: Optional[str] = None,
+    from_: Optional[str] = None,
+    to: Optional[str] = None,
+    modified_after: Optional[str] = None,
+    status: Optional[str] = None,
+) -> list:
+    """Fetch service orders from the Qualer API.
 
-    header = {"Content-Type": "application/json", "Accept": "application/json"}
+    Args:
+        client: Authenticated Qualer SDK client.
+        work_order_number: Filter by work order number.
+        from_: Filter by start date (ISO format).
+        to: Filter by end date (ISO format).
+        modified_after: Filter by modification date (ISO format).
+        status: Filter by order status.
 
-    if not username or not password:
-        cp.red(ERROR_FLAG)
-        cp.red("Username or password not provided.")
-        raise SystemExit
+    Returns:
+        A list of ServiceOrdersToClientOrderResponseModel objects.
+    """
+    import datetime as dt
 
-    data = {"UserName": username, "Password": password, "ClearPreviousTokens": "False"}
+    kwargs: dict = {}
+    if work_order_number is not None:
+        kwargs["work_order_number"] = work_order_number
+    if from_ is not None:
+        kwargs["from_"] = dt.datetime.fromisoformat(from_)
+    if to is not None:
+        kwargs["to"] = dt.datetime.fromisoformat(to)
+    if modified_after is not None:
+        kwargs["modified_after"] = dt.datetime.fromisoformat(modified_after)
+    if status is not None:
+        kwargs["status"] = status
+
     try:
-        with requests.post(endpoint, data=json.dumps(data), headers=header) as r:
-            if r.status_code != 200:
-                handle_error(r)
-
-            try:
-                response = json.loads(r.text)
-                if token := response.get("Token"):
-                    return token
-                else:
-                    cp.red(ERROR_FLAG)
-                    cp.red("No token found in response")
-                    raise SystemExit
-            except Exception as e:
-                handle_exception(e, r)
-
-    except MaxRetryError:
+        response = get_work_orders.sync(client=client, **kwargs)
+    except httpx.ConnectError:
         check_connectivity()
         cp.red("Unable to connect to Qualer. Aborting...")
         raise SystemExit
 
+    if response is None:
+        cp.red(ERROR_FLAG)
+        cp.red("Failed to fetch service orders (received None).")
+        return []
 
-def get_service_orders(data, token):
-    endpoint = QUALER_ENDPOINT + "/service/workorders"
-    header = {
-        "Authorization": "Api-Token " + token,
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-    }
-    with requests.get(endpoint, params=data, headers=header) as r:
-        if r.status_code != 200:
-            handle_error(r)
-        response = json.loads(r.text)
-        cp.white(f"{len(response)} service orders found.")
-        return response
+    cp.white(f"{len(response)} service orders found.")
+    return response
 
 
-def getServiceOrderId(token: str, workOrderNumber: str) -> Optional[str]:
+def getServiceOrderId(
+    client: AuthenticatedClient, workOrderNumber: str
+) -> Optional[int]:
     """Get the service order ID for a work order number.
 
     Args:
-        token (str): API token
-        workOrderNumber (str): Work order number
+        client: Authenticated Qualer SDK client.
+        workOrderNumber: Work order number.
 
     Returns:
-        Optional[str]: The service order ID, or None if not found.
+        The service order ID (int), or None if not found.
     """
     cp.white("Fetching service order id for work order: " + workOrderNumber + "...")
-    data = {"workOrderNumber": workOrderNumber}
     try:
-        response = get_service_orders(data, token)
-        # comes as a list, so return ServiceOrderId from first element
+        response = get_service_orders(client, work_order_number=workOrderNumber)
         if len(response) == 0:
             cp.red(ERROR_FLAG)
             cp.red(f"No service order found for work order: {workOrderNumber}")
             return None
-        return response[0].get("ServiceOrderId")
+        return response[0].service_order_id
     except Exception as e:
-        handle_exception(e, response)
+        handle_exception(e)
         return None
 
 
-def upload(token, filepath, serviceOrderId, qualertype) -> tuple[bool, str]:
+def upload(
+    client: AuthenticatedClient,
+    filepath: str,
+    serviceOrderId: int,
+    qualertype: str,
+) -> tuple[bool, str]:
+    """Upload a file to a Qualer service order.
+
+    Uses the underlying httpx client directly for multipart file upload,
+    since the SDK's generated upload endpoint does not yet support file bodies.
+
+    Args:
+        client: Authenticated Qualer SDK client.
+        filepath: Path to the file to upload.
+        serviceOrderId: The service order ID.
+        qualertype: The Qualer document/report type.
+
+    Returns:
+        A tuple of (success: bool, filepath: str).
+    """
     cp.white(f"Attempting upload for SO# {serviceOrderId}: '{path.basename(filepath)}'")
 
-    # https://requests.readthedocs.io/en/latest/user/quickstart/#post-a-multipart-encoded-file
-
-    endpoint = f"{QUALER_ENDPOINT}/service/workorders/{serviceOrderId}/documents"
+    url = f"/api/service/workorders/{serviceOrderId}/documents"
 
     if not path.exists(filepath):
         cp.red(ERROR_FLAG)
@@ -133,26 +156,19 @@ def upload(token, filepath, serviceOrderId, qualertype) -> tuple[bool, str]:
                 cp.red(f"Failed to rename {filepath} after multiple increment attempts")
                 return False, filepath
         with open(filepath, "rb") as file:
-            files = {"file": file}
+            files = {"file": (path.basename(filepath), file, "application/pdf")}
 
-            headers = {
-                "Authorization": "Api-Token " + token,
-                "Accept": "application/json",
-                "Content-Length": str(path.getsize(filepath)),
-            }
-
-            requestData = {
+            params = {
                 "model.reportType": qualertype,
             }
             if attempts > 0:
                 cp.white("Retrying upload...")
             try:
-                r = requests.post(
-                    endpoint, params=requestData, headers=headers, files=files
-                )
+                httpx_client = client.get_httpx_client()
+                r = httpx_client.post(url, params=params, files=files)
 
-            except requests.exceptions.ReadTimeout as e:
-                cp.yellow(e)
+            except httpx.TimeoutException as e:
+                cp.yellow(str(e))
                 attempts += 1
                 continue
 
@@ -162,7 +178,7 @@ def upload(token, filepath, serviceOrderId, qualertype) -> tuple[bool, str]:
 
             error_message = ""
             try:
-                response_data = json.loads(r.text)
+                response_data = r.json()
                 error_message = response_data.get("Message", "")
             except Exception as e:
                 handle_exception(e, r)
@@ -183,8 +199,18 @@ def upload(token, filepath, serviceOrderId, qualertype) -> tuple[bool, str]:
     return False, filepath
 
 
-# Function to get a list of documents for a service order
-def get_service_order_document_list(endpoint, token, ServiceOrderId):
+def get_service_order_document_list(
+    client: AuthenticatedClient, ServiceOrderId: int
+) -> Optional[List[str]]:
+    """Get a list of document filenames for a service order.
+
+    Args:
+        client: Authenticated Qualer SDK client.
+        ServiceOrderId: The service order ID.
+
+    Returns:
+        A list of filenames, or None on error.
+    """
     if not ServiceOrderId:
         cp.red(ERROR_FLAG)
         cp.red("ServiceOrderId not provided.")
@@ -194,28 +220,21 @@ def get_service_order_document_list(endpoint, token, ServiceOrderId):
         f"Fetching document list for service order: https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}..."
     )
 
-    headers = {"Accept": "application/json", "Authorization": "Api-Token " + token}
+    try:
+        response = get_documents_list.sync(
+            service_order_id=ServiceOrderId, client=client
+        )
+    except Exception as e:
+        handle_exception(e)
+        return None
 
-    endpoint = endpoint + "/service/workorders/documents/list"
+    if response is None:
+        cp.red(ERROR_FLAG)
+        cp.red(f"Failed to fetch document list for SO {ServiceOrderId}")
+        return None
 
-    params = {
-        "from": "1900-01-01T00:00:00",
-        "to": "2500-01-01T00:00:00",
-        "serviceOrderId": ServiceOrderId,
-    }
-
-    with requests.get(endpoint, params=params, headers=headers) as r:
-        if r.status_code != 200:
-            handle_error(r)
-
-        try:
-            data = json.loads(r.text)
-            file_names = []
-            for item in data:
-                file_names.append(item["FileName"])
-            cp.white(
-                f"Found {len(file_names)} documents at https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}"
-            )
-            return file_names
-        except Exception as e:
-            handle_exception(e, r)
+    file_names = [doc.file_name for doc in response]
+    cp.white(
+        f"Found {len(file_names)} documents at https://jgiquality.qualer.com/ServiceOrder/Info/{ServiceOrderId}"
+    )
+    return file_names
