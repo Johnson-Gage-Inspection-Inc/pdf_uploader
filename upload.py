@@ -8,7 +8,7 @@ sudo apt install poppler-utils
 sudo apt install tesseract-ocr (or, install windows tesseract)
 
 windows/linux
-pip3 install PyPDF2 pytesseract pypdfium2 qualer-sdk
+pip3 install -r requirements.txt  # includes PyPDF2, pytesseract, pypdfium2, qualer_sdk from git
 """
 
 from datetime import datetime
