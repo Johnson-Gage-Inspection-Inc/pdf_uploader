@@ -120,11 +120,18 @@ def upload(token, filepath, serviceOrderId, qualertype) -> tuple[bool, str]:
 
     while attempts < 5:
         if attempts > 0:
-            new_filename = pdf.increment_filename(filepath)
-            if not pdf.try_rename(filepath, new_filename):
-                cp.red(f"Failed to rename {filepath} to {new_filename}")
+            renamed = False
+            candidate = filepath
+            for _ in range(50):
+                new_filename = pdf.increment_filename(candidate)
+                if pdf.try_rename(filepath, new_filename):
+                    filepath = new_filename
+                    renamed = True
+                    break
+                candidate = new_filename
+            if not renamed:
+                cp.red(f"Failed to rename {filepath} after multiple increment attempts")
                 return False, filepath
-            filepath = new_filename
         with open(filepath, "rb") as file:
             files = {"file": file}
 

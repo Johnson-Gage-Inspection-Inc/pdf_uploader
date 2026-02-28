@@ -205,7 +205,9 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     # Check for PO in file name
     if filename.startswith("PO"):
-        uploadResult = handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename)
+        uploadResult, new_filepath = handle_po_upload(
+            filepath, QUALER_DOCUMENT_TYPE, filename
+        )
 
     if not uploadResult:
         # Check for work orders in file body or file name
@@ -323,7 +325,7 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
         uploadResult = True
     if failedSOs:
         cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
-    return uploadResult
+    return uploadResult, new_filepath
 
 
 if not LIVEAPI:
