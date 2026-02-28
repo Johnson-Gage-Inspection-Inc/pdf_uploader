@@ -7,3 +7,4 @@ build/
 temp.*
 .mypy_cache/
 .vscode/settings.json
+.coverage
