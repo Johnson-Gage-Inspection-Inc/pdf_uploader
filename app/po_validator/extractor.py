@@ -556,7 +556,7 @@ def extract_with_pdfplumber(pdf_bytes: bytes) -> POExtraction | None:
             po_number=po_number,
             line_items=text_items,
             confidence=conf,
-            extraction_method="table",
+            extraction_method="text",
             raw_text=raw_text[:5000],
         )
 
@@ -565,7 +565,7 @@ def extract_with_pdfplumber(pdf_bytes: bytes) -> POExtraction | None:
         po_number=po_number,
         line_items=[],
         confidence=0.1,
-        extraction_method="table",
+        extraction_method="none",
         raw_text=raw_text[:5000],
     )
 

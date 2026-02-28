@@ -178,5 +178,36 @@ class TestGetServiceOrderDocumentList(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestGetWorkItems(unittest.TestCase):
+    @patch("app.api._sdk_get_work_items.sync")
+    @patch("app.api.cp")
+    def test_get_work_items_success(self, mock_cp, mock_sync):
+        from app.api import get_work_items
+
+        mock_item = MagicMock()
+        mock_sync.return_value = [mock_item]
+
+        result = get_work_items(456)
+        self.assertEqual(result, [mock_item])
+        mock_sync.assert_called_once()
+
+    @patch("app.api._sdk_get_work_items.sync")
+    @patch("app.api.cp")
+    def test_get_work_items_none_response(self, mock_cp, mock_sync):
+        from app.api import get_work_items
+
+        mock_sync.return_value = None
+        result = get_work_items(456)
+        self.assertEqual(result, [])
+
+    @patch("app.api._sdk_get_work_items.sync", side_effect=Exception("API error"))
+    @patch("app.api.cp")
+    def test_get_work_items_exception_returns_empty(self, mock_cp, mock_sync):
+        from app.api import get_work_items
+
+        result = get_work_items(456)
+        self.assertEqual(result, [])
+
+
 if __name__ == "__main__":
     unittest.main()
