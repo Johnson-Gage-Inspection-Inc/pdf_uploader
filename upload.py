@@ -61,7 +61,7 @@ def getEnv():
 
     # If not found, try loading from .env file
     base_path = (
-        getattr(sys, "_MEIPASS")
+        sys._MEIPASS
         if getattr(sys, "frozen", False)
         else os.path.dirname(__file__)
     )
