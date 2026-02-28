@@ -47,6 +47,7 @@ class TestConfig(unittest.TestCase):
             self.assertIn("OUTPUT_DIR", entry)
             self.assertIn("REJECT_DIR", entry)
             self.assertIn("QUALER_DOCUMENT_TYPE", entry)
+            self.assertIn("VALIDATE_PO", entry)
 
 
 if __name__ == "__main__":

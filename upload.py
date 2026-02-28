@@ -13,6 +13,7 @@ pip3 install -r requirements.txt  # includes PyPDF2, pytesseract, pypdfium2, qua
 
 from datetime import datetime
 import os
+import tempfile
 import traceback
 from typing import Tuple
 import app.color_print as cp
@@ -360,8 +361,6 @@ def _run_po_validation(
             if annotated_bytes and not DEBUG:
                 cp.white(f"Uploading annotated PO: {annotated_name}")
                 # Write to a temporary file for upload
-                import tempfile
-
                 with tempfile.NamedTemporaryFile(
                     suffix=".pdf", prefix="po_annotated_", delete=False
                 ) as tmp:
@@ -369,6 +368,7 @@ def _run_po_validation(
                     tmp_path = tmp.name
                 try:
                     # Rename temp file to the desired annotated name
+                    annotated_path = None
                     annotated_path = os.path.join(
                         os.path.dirname(tmp_path), annotated_name
                     )
@@ -386,7 +386,7 @@ def _run_po_validation(
                     # Clean up temp files
                     for p in (
                         tmp_path,
-                        annotated_path if "annotated_path" in dir() else "",
+                        annotated_path if annotated_path is not None else "",
                     ):
                         if p and os.path.exists(p):
                             try:

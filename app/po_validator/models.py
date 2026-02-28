@@ -39,7 +39,7 @@ class POExtraction(BaseModel):
         le=1.0,
         description="Confidence score for the extraction (0-1)",
     )
-    extraction_method: Literal["table", "llm", "none"] = "none"
+    extraction_method: Literal["table", "llm", "text", "none"] = "none"
     raw_text: str = Field("", description="Raw text extracted from PDF (for debugging)")
 
 
@@ -100,7 +100,7 @@ class ValidationResult(BaseModel):
     line_items_checked: int = 0
     line_items_matched: int = 0
     work_items_total: int = 0
-    extraction_method: Literal["table", "llm", "none"] = "none"
+    extraction_method: Literal["table", "llm", "text", "none"] = "none"
     confidence: float = 0.0
     timestamp: datetime = Field(default_factory=datetime.now)
     notes: str = ""
