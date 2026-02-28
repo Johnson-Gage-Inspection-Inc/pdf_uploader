@@ -92,7 +92,7 @@ class DashboardWidget(QWidget):
         self.table = QTableWidget()
         self.table.setColumnCount(7)
         self.table.setHorizontalHeaderLabels(
-            ["Time", "Filename", "Upload", "Validation", "SO#", "PO#", "Details"]
+            ["Time", "Filename", "Upload", "Validation", "WO#", "PO#", "Details"]
         )
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -183,16 +183,26 @@ class DashboardWidget(QWidget):
                 val_item.setForeground(val_color)
             self.table.setItem(row, 3, val_item)
 
-            # SO# as clickable hyperlinks
-            if event.service_order_ids:
-                so_label = QLabel()
+            # WO# as clickable hyperlinks (fall back to SO# for PO uploads)
+            if event.work_orders or event.service_order_ids:
+                wo_label = QLabel()
                 links = []
-                for so_id in event.service_order_ids:
-                    url = f"{QUALER_SO_URL}/{so_id}"
-                    links.append(f'<a href="{url}">{so_id}</a>')
-                so_label.setText("  ".join(links))
-                so_label.setOpenExternalLinks(True)
-                self.table.setCellWidget(row, 4, so_label)
+                if event.work_orders:
+                    # Show WO numbers linked to their SO URLs
+                    for idx, wo in enumerate(event.work_orders):
+                        if idx < len(event.service_order_ids):
+                            url = f"{QUALER_SO_URL}/{event.service_order_ids[idx]}"
+                            links.append(f'<a href="{url}">{wo}</a>')
+                        else:
+                            links.append(wo)
+                else:
+                    # PO-based uploads: only SO IDs available
+                    for so_id in event.service_order_ids:
+                        url = f"{QUALER_SO_URL}/{so_id}"
+                        links.append(f'<a href="{url}">SO {so_id}</a>')
+                wo_label.setText("  ".join(links))
+                wo_label.setOpenExternalLinks(True)
+                self.table.setCellWidget(row, 4, wo_label)
             else:
                 self.table.setItem(row, 4, QTableWidgetItem(""))
 

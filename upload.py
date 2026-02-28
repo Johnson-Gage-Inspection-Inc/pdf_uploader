@@ -103,23 +103,25 @@ def upload_with_rename(
 
 # Get service order ID and upload file to Qualer endpoint
 def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str):
+    """Returns (uploadResult, new_filepath, serviceOrderId)."""
     try:
         if not os.path.isfile(filepath):  # See if filepath is valid
-            return False, filepath
+            return False, filepath, None
         if serviceOrderId := api.getServiceOrderId(workorder):
-            return upload_with_rename(
+            uploadResult, new_filepath = upload_with_rename(
                 filepath, serviceOrderId, QUALER_DOCUMENT_TYPE
-            )  # return uploadResult, new_filepath
+            )
+            return uploadResult, new_filepath, serviceOrderId
         else:
             cp.red(f"Service order not found for work order: {workorder}")
-            return False, filepath
+            return False, filepath, None
     except FileNotFoundError as e:
         cp.red(f"Error: {filepath} not found.\n{e}")
-        return False, filepath
+        return False, filepath, None
     except Exception as e:
         cp.red(f"Error in fetch_SO_and_upload(): {e}\nFile: {filepath}")
         traceback.print_exc()
-        return False, filepath
+        return False, filepath, None
 
 
 # Get service order ID and upload file to Qualer endpoint
@@ -227,6 +229,13 @@ def process_file(filepath: str, qualer_parameters: tuple):
             handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, VALIDATE_PO)
         )
         service_order_ids = successSOs + failedSOs
+        # Look up WO numbers for the SO IDs from the PO dict cache
+        from app.PurchaseOrders import get_work_order_number
+
+        for so_id in service_order_ids:
+            wo = get_work_order_number(so_id)
+            if wo:
+                work_orders.append(wo)
 
     if not uploadResult:
         # Check for work orders in file body or file name
@@ -254,9 +263,12 @@ def process_file(filepath: str, qualer_parameters: tuple):
             for (
                 workorder
             ) in workorders_result:  # loop through work orders list and upload
-                uploadResult, new_filepath = fetch_SO_and_upload(
+                uploadResult, new_filepath, soId = fetch_SO_and_upload(
                     workorder, filepath, QUALER_DOCUMENT_TYPE
                 )  # upload file
+                work_orders.append(workorder)
+                if soId:
+                    service_order_ids.append(soId)
 
         elif isinstance(workorders_result, dict):
             if (
@@ -268,9 +280,12 @@ def process_file(filepath: str, qualer_parameters: tuple):
                 cp.green(
                     f"One (1) work order found within file: {workorder}"
                 )  # Print the work order number
-                uploadResult, new_filepath = fetch_SO_and_upload(
+                uploadResult, new_filepath, soId = fetch_SO_and_upload(
                     workorder, filepath, QUALER_DOCUMENT_TYPE
                 )  # Upload the file
+                work_orders.append(workorder)
+                if soId:
+                    service_order_ids.append(soId)
 
             else:  # For multiple work orders,
                 cp.green(
@@ -289,9 +304,12 @@ def process_file(filepath: str, qualer_parameters: tuple):
                     pdf.create_child_pdf(
                         filepath, pg_nums, child_pdf_path
                     )  # extract relevant pages from PDF, and
-                    uploadResult, new_child_pdf_path = fetch_SO_and_upload(
+                    uploadResult, new_child_pdf_path, soId = fetch_SO_and_upload(
                         workorder, child_pdf_path, QUALER_DOCUMENT_TYPE
                     )  # upload extracted pages
+                    work_orders.append(workorder)
+                    if soId:
+                        service_order_ids.append(soId)
                     child_pdf_path = (
                         new_child_pdf_path if new_child_pdf_path else child_pdf_path
                     )  # if the file was renamed, update the filepath

@@ -11,12 +11,25 @@ import re
 
 DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
+# Maps ServiceOrderId -> CustomOrderNumber (work order number).
+# Populated as a side-effect of update_dict / update_PO_numbers.
+_so_to_wo: dict[int, str] = {}
+
+
+def get_work_order_number(service_order_id: int) -> Optional[str]:
+    """Look up the CustomOrderNumber for a given ServiceOrderId."""
+    return _so_to_wo.get(service_order_id)
+
 
 def update_dict(lookup: dict, response: list) -> dict:
     for so in response:
         PrimaryPo = so.po_number
         SecondaryPo = so.secondary_po
         ServiceOrderId = so.service_order_id
+        # Cache the SO -> WO mapping for GUI display
+        wo = getattr(so, "custom_order_number", None)
+        if wo and ServiceOrderId:
+            _so_to_wo[ServiceOrderId] = wo
         if PrimaryPo not in lookup:
             lookup[PrimaryPo] = [ServiceOrderId]
         elif ServiceOrderId not in lookup[PrimaryPo]:
