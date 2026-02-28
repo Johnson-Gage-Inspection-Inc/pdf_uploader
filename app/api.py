@@ -88,7 +88,7 @@ def getServiceOrderId(token: str, workOrderNumber: str) -> Optional[str]:
         workOrderNumber (str): Work order number
 
     Returns:
-        str: _description_
+        Optional[str]: The service order ID, or None if not found.
     """
     cp.white("Fetching service order id for work order: " + workOrderNumber + "...")
     data = {"workOrderNumber": workOrderNumber}
