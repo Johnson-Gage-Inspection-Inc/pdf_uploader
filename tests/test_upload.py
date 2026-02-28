@@ -156,7 +156,9 @@ class TestHandlePOUpload(unittest.TestCase):
         mock_upload_po.return_value = (["SO1"], [], "/path/to/file.pdf")
 
         result = handle_po_upload("/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf")
-        self.assertTrue(result)
+        uploadResult, new_filepath = result
+        self.assertTrue(uploadResult)
+        self.assertEqual(new_filepath, "/path/to/file.pdf")
 
     @patch("upload.upload_by_po")
     @patch("upload.update_PO_numbers")
@@ -166,8 +168,11 @@ class TestHandlePOUpload(unittest.TestCase):
         mock_update.return_value = {"PO123": ["SO1"]}
         mock_upload_po.return_value = ([], ["SO1"], "/path/to/file.pdf")
 
-        result = handle_po_upload("/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf")
-        self.assertFalse(result)
+        uploadResult, new_filepath = handle_po_upload(
+            "/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf"
+        )
+        self.assertFalse(uploadResult)
+        self.assertEqual(new_filepath, "/path/to/file.pdf")
 
 
 if __name__ == "__main__":
