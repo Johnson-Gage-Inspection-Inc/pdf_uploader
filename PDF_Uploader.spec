@@ -14,7 +14,7 @@ a = Analysis(
         ('app/po_validator/stamps/*.png', 'app/po_validator/stamps')
     ],
     hiddenimports=['httpx', 'httpcore', 'qualer_sdk', 'h11', 'anyio', 'pdfplumber', 'google.genai', 'pydantic', 'fitz'],
-    hookspath=[],
+    hookspath=['hooks'],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
