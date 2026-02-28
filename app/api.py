@@ -114,6 +114,7 @@ def upload(
     filepath: str,
     serviceOrderId: int,
     qualertype: str,
+    private: bool = False,
 ) -> tuple[bool, str]:
     """Upload a file to a Qualer service order.
 
@@ -121,6 +122,10 @@ def upload(
         filepath: Path to the file to upload.
         serviceOrderId: The service order ID.
         qualertype: The Qualer document/report type.
+        private: If ``True``, set ``model_is_private`` on the API call so that
+            Qualer marks the uploaded document as private. This is used for
+            AI-reviewed/annotated documents which shouldn't be visible to end
+            users.
 
     Returns:
         A tuple of (success: bool, filepath: str).
@@ -162,6 +167,7 @@ def upload(
                     client=make_qualer_client(),
                     files=[upload_file],
                     model_report_type=qualertype,
+                    model_is_private=private,
                 )
 
             except httpx.TimeoutException as e:

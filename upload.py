@@ -77,9 +77,13 @@ def rename_file(filepath: str, doc_list: list) -> str:
 
 
 def upload_with_rename(
-    filepath: str, serviceOrderId: int, doc_type: str
+    filepath: str, serviceOrderId: int, doc_type: str, private: bool = False
 ) -> Tuple[bool, str]:
-    """Upload file to Qualer endpoint, and resolve name conflicts"""
+    """Upload file to Qualer endpoint, and resolve name conflicts.
+
+    The ``private`` flag is forwarded to :func:`app.api.upload` so that
+    callers (e.g. annotated PO uploads) can request a private document.
+    """
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(
         serviceOrderId
@@ -94,7 +98,9 @@ def upload_with_rename(
             cp.yellow("debug mode, no uploads")
             # Skip actual upload in debug mode to avoid network/API calls
             return False, new_filepath
-        uploadResult, new_filepath = api.upload(new_filepath, serviceOrderId, doc_type)
+        uploadResult, new_filepath = api.upload(
+            new_filepath, serviceOrderId, doc_type, private=private
+        )
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
         uploadResult = False
@@ -102,14 +108,16 @@ def upload_with_rename(
 
 
 # Get service order ID and upload file to Qualer endpoint
-def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str):
+def fetch_SO_and_upload(
+    workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str, private: bool = False
+):
     """Returns (uploadResult, new_filepath, serviceOrderId)."""
     try:
         if not os.path.isfile(filepath):  # See if filepath is valid
             return False, filepath, None
         if serviceOrderId := api.getServiceOrderId(workorder):
             uploadResult, new_filepath = upload_with_rename(
-                filepath, serviceOrderId, QUALER_DOCUMENT_TYPE
+                filepath, serviceOrderId, QUALER_DOCUMENT_TYPE, private=private
             )
             return uploadResult, new_filepath, serviceOrderId
         else:
@@ -126,7 +134,11 @@ def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str
 
 # Get service order ID and upload file to Qualer endpoint
 def upload_by_po(
-    filepath: str, po: str, po_dict: dict, QUALER_DOCUMENT_TYPE: str
+    filepath: str,
+    po: str,
+    po_dict: dict,
+    QUALER_DOCUMENT_TYPE: str,
+    private: bool = False,
 ) -> Tuple[list, list, str]:
     if po not in po_dict:
         cp.yellow(f"PO# {po} not found in Qualer.")
@@ -142,7 +154,7 @@ def upload_by_po(
             if not os.path.isfile(filepath):
                 return [], serviceOrderIds, filepath
             uploadResult, filepath = upload_with_rename(
-                filepath, serviceOrderId, QUALER_DOCUMENT_TYPE
+                filepath, serviceOrderId, QUALER_DOCUMENT_TYPE, private=private
             )  # return uploadResult, new_filepath
             if uploadResult:
                 successSOs.append(serviceOrderId)
@@ -478,7 +490,9 @@ def _run_po_validation(
                     if os.path.exists(annotated_path):
                         os.remove(annotated_path)
                     os.rename(tmp_path, annotated_path)
-                    success, _ = api.upload(annotated_path, service_order_id, "general")
+                    success, _ = api.upload(
+                        annotated_path, service_order_id, "general", private=True
+                    )
                     if success:
                         cp.green(f"Annotated PO uploaded for SO# {service_order_id}")
                     else:
