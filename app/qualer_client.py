@@ -15,7 +15,7 @@ _QUALER_CLIENT_LOCK = Lock()
 _QUALER_CLIENT_OVERRIDE: Optional[AuthenticatedClient] = None  # for tests/overrides
 
 
-def make_qualer_client(raise_on_unexpected_status: bool = False) -> AuthenticatedClient:
+def make_qualer_client() -> AuthenticatedClient:
     """
     Lazily create and return a shared Qualer API client (singleton per process).
 
@@ -68,7 +68,6 @@ def make_qualer_client(raise_on_unexpected_status: bool = False) -> Authenticate
             _QUALER_CLIENT = AuthenticatedClient(
                 token=api_token,
                 base_url=base_url,
-                raise_on_unexpected_status=raise_on_unexpected_status,
             )
     return _QUALER_CLIENT
 
