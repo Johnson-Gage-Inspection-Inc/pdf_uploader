@@ -96,21 +96,18 @@ class TestGetServiceOrderId(unittest.TestCase):
 
 
 class TestUpload(unittest.TestCase):
+    @patch("app.api.upload_documents_post_2.sync_detailed")
     @patch("app.api.cp")
     @patch("app.api.path.exists", return_value=True)
     @patch("builtins.open", MagicMock())
-    def test_upload_success(self, mock_exists, mock_cp):
+    def test_upload_success(self, mock_exists, mock_cp, mock_sync_detailed):
         from app.api import upload
 
         mock_response = MagicMock()
         mock_response.status_code = 200
-
-        mock_httpx_client = MagicMock()
-        mock_httpx_client.post.return_value = mock_response
+        mock_sync_detailed.return_value = mock_response
 
         mock_client = MagicMock()
-        mock_client.get_httpx_client.return_value = mock_httpx_client
-
         result, filepath = upload(
             mock_client, "/path/to/file.pdf", 123, "ordercertificate"
         )
@@ -127,6 +124,7 @@ class TestUpload(unittest.TestCase):
         )
         self.assertFalse(result)
 
+    @patch("app.api.upload_documents_post_2.sync_detailed")
     @patch("app.api.pdf.try_rename", return_value=True)
     @patch("app.api.pdf.increment_filename", return_value="/path/to/file (1).pdf")
     @patch("app.api.cp")
@@ -138,24 +136,23 @@ class TestUpload(unittest.TestCase):
         mock_cp,
         mock_increment,
         mock_rename,
+        mock_sync_detailed,
     ):
         from app.api import upload
+        import json
 
         locked_response = MagicMock()
         locked_response.status_code = 400
-        locked_response.json.return_value = {
-            "Message": "This document version is locked and cannot be overwritten."
-        }
+        locked_response.content = json.dumps(
+            {"Message": "This document version is locked and cannot be overwritten."}
+        ).encode()
 
         success_response = MagicMock()
         success_response.status_code = 200
 
-        mock_httpx_client = MagicMock()
-        mock_httpx_client.post.side_effect = [locked_response, success_response]
+        mock_sync_detailed.side_effect = [locked_response, success_response]
 
         mock_client = MagicMock()
-        mock_client.get_httpx_client.return_value = mock_httpx_client
-
         result, filepath = upload(
             mock_client, "/path/to/file.pdf", 123, "ordercertificate"
         )

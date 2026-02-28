@@ -10,8 +10,11 @@ from qualer_sdk import AuthenticatedClient
 from qualer_sdk.api.service_orders import get_work_orders
 from qualer_sdk.api.service_order_documents import (
     get_documents_list,
+    upload_documents_post_2,
 )
+from qualer_sdk.types import File
 from typing import List, Optional
+import json
 
 ERROR_FLAG = "ERROR:"
 
@@ -119,9 +122,6 @@ def upload(
 ) -> tuple[bool, str]:
     """Upload a file to a Qualer service order.
 
-    Uses the underlying httpx client directly for multipart file upload,
-    since the SDK's generated upload endpoint does not yet support file bodies.
-
     Args:
         client: Authenticated Qualer SDK client.
         filepath: Path to the file to upload.
@@ -132,8 +132,6 @@ def upload(
         A tuple of (success: bool, filepath: str).
     """
     cp.white(f"Attempting upload for SO# {serviceOrderId}: '{path.basename(filepath)}'")
-
-    url = f"/api/service/workorders/{serviceOrderId}/documents"
 
     if not path.exists(filepath):
         cp.red(ERROR_FLAG)
@@ -156,16 +154,21 @@ def upload(
                 cp.red(f"Failed to rename {filepath} after multiple increment attempts")
                 return False, filepath
         with open(filepath, "rb") as file:
-            files = {"file": (path.basename(filepath), file, "application/pdf")}
+            upload_file = File(
+                payload=file,
+                file_name=path.basename(filepath),
+                mime_type="application/pdf",
+            )
 
-            params = {
-                "model.reportType": qualertype,
-            }
             if attempts > 0:
                 cp.white("Retrying upload...")
             try:
-                httpx_client = client.get_httpx_client()
-                r = httpx_client.post(url, params=params, files=files)
+                r = upload_documents_post_2.sync_detailed(
+                    service_order_id=serviceOrderId,
+                    client=client,
+                    files=[upload_file],
+                    model_report_type=qualertype,
+                )
 
             except httpx.TimeoutException as e:
                 cp.yellow(str(e))
@@ -178,10 +181,10 @@ def upload(
 
             error_message = ""
             try:
-                response_data = r.json()
+                response_data = json.loads(r.content)
                 error_message = response_data.get("Message", "")
             except Exception as e:
-                handle_exception(e, r)
+                handle_exception(e)
 
             if (
                 r.status_code == 400
@@ -192,7 +195,9 @@ def upload(
                 attempts += 1
                 # No return, so that we can try again after the file is renamed.
             else:  # if r.status_code != 200
-                handle_error(r)
+                cp.red(ERROR_FLAG)
+                cp.red(f"STATUS CODE: {r.status_code}")
+                cp.red(f"RESPONSE: {r.content.decode()}")
                 return False, filepath
 
     # All retry attempts exhausted
