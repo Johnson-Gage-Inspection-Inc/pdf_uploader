@@ -3,17 +3,35 @@ from unittest.mock import patch, MagicMock
 import os
 import sys
 
-# Mock the app modules before importing upload
+# Mock app modules BEFORE importing upload.
 # This must happen before any `from upload import ...` statements,
 # because upload.py executes module-level code on import.
+# upload.py has module-level code (getEnv, api.login, logging.basicConfig)
+# that executes on import, so mocks must be in place first.
+
+mock_config = MagicMock()
+mock_config.QUALER_STAGING_ENDPOINT = "https://staging.example.com"
+mock_config.DEBUG = False
+mock_config.LIVEAPI = True
+mock_config.QUALER_ENDPOINT = "https://api.example.com"
+mock_config.LOG_FILE = None
+
+mock_api = MagicMock()
+mock_api.login.return_value = "test-token-123"
+
 sys.modules["app"] = MagicMock()
 sys.modules["app.color_print"] = MagicMock()
 sys.modules["app.PurchaseOrders"] = MagicMock()
-sys.modules["app.api"] = MagicMock()
+sys.modules["app.api"] = mock_api
 sys.modules["app.pdf"] = MagicMock()
-sys.modules["app.config"] = MagicMock()
+sys.modules["app.config"] = mock_config
 sys.modules["app.orientation"] = MagicMock()
 
+# Provide test credentials so getEnv() doesn't raise ValueError
+os.environ.setdefault("QUALER_EMAIL", "test@example.com")
+os.environ.setdefault("QUALER_PASSWORD", "test_password")
+
+# NOW safe to import from upload
 from upload import get_credentials  # noqa: E402
 from upload import rename_file  # noqa: E402
 from upload import upload_with_rename  # noqa: E402
@@ -138,7 +156,9 @@ class TestHandlePOUpload(unittest.TestCase):
         mock_upload_po.return_value = (["SO1"], [], "/path/to/file.pdf")
 
         result = handle_po_upload("/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf")
-        self.assertTrue(result)
+        uploadResult, new_filepath = result
+        self.assertTrue(uploadResult)
+        self.assertEqual(new_filepath, "/path/to/file.pdf")
 
     @patch("upload.upload_by_po")
     @patch("upload.update_PO_numbers")
@@ -148,8 +168,11 @@ class TestHandlePOUpload(unittest.TestCase):
         mock_update.return_value = {"PO123": ["SO1"]}
         mock_upload_po.return_value = ([], ["SO1"], "/path/to/file.pdf")
 
-        result = handle_po_upload("/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf")
-        self.assertFalse(result)
+        uploadResult, new_filepath = handle_po_upload(
+            "/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf"
+        )
+        self.assertFalse(uploadResult)
+        self.assertEqual(new_filepath, "/path/to/file.pdf")
 
 
 if __name__ == "__main__":

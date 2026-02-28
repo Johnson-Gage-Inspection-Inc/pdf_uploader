@@ -92,6 +92,9 @@ def rename_file(filepath: str, doc_list: list) -> str:
                 # Try to rename the file
                 did_rename = pdf.try_rename(filepath, new_filepath)
             attempts -= 1
+        if not did_rename:
+            cp.red(f"Failed to rename '{file_name}' after multiple attempts.")
+            return filepath
         cp.green(f"'{file_name}' renamed to: '{new_filename}'")
         return new_filepath
     except FileNotFoundError:
@@ -150,12 +153,12 @@ def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str
 
 # Get service order ID and upload file to Qualer endpoint
 def upload_by_po(
-    filepath: str, po: str, dict: dict, QUALER_DOCUMENT_TYPE: str
+    filepath: str, po: str, po_dict: dict, QUALER_DOCUMENT_TYPE: str
 ) -> Tuple[list, list, str]:
-    if po not in dict:
+    if po not in po_dict:
         cp.yellow(f"PO# {po} not found in Qualer.")
         return [], [], filepath
-    serviceOrderIds = dict[po]
+    serviceOrderIds = po_dict[po]
     cp.green(
         f"Found {len(serviceOrderIds)} service orders for PO {po}: {serviceOrderIds}"
     )
@@ -202,7 +205,9 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     # Check for PO in file name
     if filename.startswith("PO"):
-        uploadResult = handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename)
+        uploadResult, new_filepath = handle_po_upload(
+            filepath, QUALER_DOCUMENT_TYPE, filename
+        )
 
     if not uploadResult:
         # Check for work orders in file body or file name
@@ -293,23 +298,14 @@ def process_file(filepath: str, qualer_parameters: tuple):
         elif filepath:
             # Archive only version:
             try:
-                # Try moving the file to the archive folder
+                # Move the file to the archive folder.
+                # move_file handles FileExistsError internally
+                # by incrementing the destination filename.
                 pdf.move_file(filepath, OUTPUT_DIR)
-            except FileExistsError:
-                # Resolve naming conflict in the Archives folder
-                new_filepath = filepath
-                while True:
-                    new_filepath = pdf.increment_filename(new_filepath)
-                    result = pdf.move_file(new_filepath, OUTPUT_DIR)
-                    if result:
-                        break
             except Exception as e:
                 cp.red(e)
                 traceback.print_exc()
                 input("Press Enter to continue...")
-        else:
-            # If there was an upload failure, increment the filename and try again
-            os.rename(filepath, pdf.increment_filename(filepath))
 
     except Exception as e:
         cp.yellow(f"Failed to remove file: {filepath} | {e}")
@@ -329,7 +325,7 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
         uploadResult = True
     if failedSOs:
         cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
-    return uploadResult
+    return uploadResult, new_filepath
 
 
 if not LIVEAPI:

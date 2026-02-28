@@ -43,15 +43,19 @@ def is_sharepoint_accessible() -> bool:
     return exists(SHAREPOINT_PATH)
 
 
-def is_qualer_accessible() -> bool:
+def is_qualer_accessible(max_retries: int = 12) -> bool:
     try:
-        while True:
+        for attempt in range(max_retries):
             # Attempt to ping the Qualer endpoint
             if ping_address("qualer.com"):
                 return True
             else:
-                warn("Qualer server unreachable. Retrying...")
+                warn(
+                    f"Qualer server unreachable. Retrying ({attempt + 1}/{max_retries})..."
+                )
                 sleep(5)
+        warn("Qualer server unreachable after all retries.")
+        return False
     except Exception as e:
         warn(f"Error accessing Qualer: {e}")
         return False

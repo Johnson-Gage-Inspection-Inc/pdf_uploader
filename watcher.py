@@ -44,7 +44,7 @@ class PDFFileHandler(FileSystemEventHandler):
 
     # Called when a file is moved into the input directory or renamed
     def on_moved(self, event):
-        if self.wait_for_file_stability(event.src_path):
+        if self.wait_for_file_stability(event.dest_path):
             process_pdfs(self.parameters)
 
     def wait_for_file_stability(self, file_path):
@@ -102,7 +102,9 @@ def watch_directory(input_dir, params):
 
             time.sleep(1)
     except KeyboardInterrupt:
-        observer.stop()  # Stop the file system watcher if interrupted by the user
+        pass  # Exit gracefully
+    finally:
+        observer.stop()  # Stop the file system watcher
         observer.join()
 
 
@@ -116,7 +118,7 @@ def dict_to_list_of_lists(data):
 
 def main():
     if hasattr(sys, "_MEIPASS"):
-        os.chdir(sys._MEIPASS)
+        os.chdir(getattr(sys, "_MEIPASS"))
 
     initialize()
     check_connectivity()
