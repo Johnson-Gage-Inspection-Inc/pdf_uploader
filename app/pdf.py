@@ -176,7 +176,7 @@ def increment_filename(old_filename):
 
 
 # Move the file to the reject directory
-def move_file(filepath, output_dir):
+def move_file(filepath, output_dir) -> str | bool:
     file_name = os.path.basename(filepath)
     new_filepath = os.path.join(output_dir, file_name)
     attempt = 0
