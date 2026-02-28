@@ -5,6 +5,7 @@ from typing import Optional
 from uuid import UUID
 from dotenv import load_dotenv
 from qualer_sdk.client import AuthenticatedClient
+from app.config import LIVEAPI, QUALER_ENDPOINT, QUALER_STAGING_ENDPOINT
 
 load_dotenv()  # Load environment variables from .env file (if present)
 
@@ -24,6 +25,7 @@ def make_qualer_client(raise_on_unexpected_status: bool = False) -> Authenticate
 
     Environment variables:
     - QUALER_API_KEY: API key for authentication
+    - LIVEAPI (from app.config): selects production vs staging base URL
 
     Returns:
         AuthenticatedClient: Client for Qualer API (shared instance)
@@ -59,8 +61,14 @@ def make_qualer_client(raise_on_unexpected_status: bool = False) -> Authenticate
             except ValueError:
                 raise ValueError("Invalid API token format")
 
+            # Select base URL based on LIVEAPI flag (strip /api suffix used by SDK internally)
+            endpoint = QUALER_ENDPOINT if LIVEAPI else QUALER_STAGING_ENDPOINT
+            base_url = endpoint.removesuffix("/api")
+
             _QUALER_CLIENT = AuthenticatedClient(
-                token=api_token, raise_on_unexpected_status=raise_on_unexpected_status
+                token=api_token,
+                base_url=base_url,
+                raise_on_unexpected_status=raise_on_unexpected_status,
             )
     return _QUALER_CLIENT
 
