@@ -21,10 +21,11 @@ def update_dict(lookup: dict, response: list) -> dict:
             lookup[PrimaryPo] = [ServiceOrderId]
         elif ServiceOrderId not in lookup[PrimaryPo]:
             lookup[PrimaryPo].append(ServiceOrderId)
-        if SecondaryPo not in lookup[PrimaryPo]:
-            lookup[SecondaryPo] = [ServiceOrderId]
-        elif ServiceOrderId not in lookup[SecondaryPo]:
-            lookup[SecondaryPo].append(ServiceOrderId)
+        if SecondaryPo:  # Skip None/empty SecondaryPo values
+            if SecondaryPo not in lookup:
+                lookup[SecondaryPo] = [ServiceOrderId]
+            elif ServiceOrderId not in lookup[SecondaryPo]:
+                lookup[SecondaryPo].append(ServiceOrderId)
     return lookup
 
 
@@ -91,10 +92,16 @@ def update_PO_numbers(
         with gzip.open(PO_DICT_FILE, "rb") as f:
             lookup = json.loads(f.read().decode("utf-8"))
         cp.green(f"Using PO dictionary file at: {PO_DICT_FILE}")
+    except FileNotFoundError:
+        cp.yellow(f"PO dictionary file not found: {PO_DICT_FILE}. Building from API...")
+        lookup = _get_PO_numbers(token)
+        save_as_zip_file(lookup)
+        return lookup  # Just built the full dictionary, no need to check for updates
     except gzip.BadGzipFile:
         cp.red("Error: The file is not a valid gzip file.")
         lookup = _get_PO_numbers(token)
         save_as_zip_file(lookup)
+        return lookup  # Just rebuilt the full dictionary
 
     timestamp = os.path.getmtime(PO_DICT_FILE)  # Get the time of the last change
     last_modified = dt.datetime.fromtimestamp(timestamp)

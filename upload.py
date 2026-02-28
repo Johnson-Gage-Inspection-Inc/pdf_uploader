@@ -92,6 +92,9 @@ def rename_file(filepath: str, doc_list: list) -> str:
                 # Try to rename the file
                 did_rename = pdf.try_rename(filepath, new_filepath)
             attempts -= 1
+        if not did_rename:
+            cp.red(f"Failed to rename '{file_name}' after multiple attempts.")
+            return filepath
         cp.green(f"'{file_name}' renamed to: '{new_filename}'")
         return new_filepath
     except FileNotFoundError:
@@ -301,9 +304,6 @@ def process_file(filepath: str, qualer_parameters: tuple):
                 cp.red(e)
                 traceback.print_exc()
                 input("Press Enter to continue...")
-        else:
-            # If there was an upload failure, increment the filename and try again
-            os.rename(filepath, pdf.increment_filename(filepath))
 
     except Exception as e:
         cp.yellow(f"Failed to remove file: {filepath} | {e}")

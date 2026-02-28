@@ -9,6 +9,7 @@ import cv2
 import app.color_print as cp
 import os
 import logging
+import tempfile
 import traceback
 from app.pdf import open_with_debug, workorders, move_file
 
@@ -63,11 +64,14 @@ def get_pdf_orientation(filepath) -> int | None:
 
 def convert_pdf_to_image(filepath):
     doc = fopen(filepath)
-    page = doc.load_page(
-        0
-    )  # It assumes you want to check the orientation of the first page
-    pix = page.get_pixmap(matrix=Matrix(300 / 72, 300 / 72))  # type: ignore[attr-defined]
-    image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    try:
+        page = doc.load_page(
+            0
+        )  # It assumes you want to check the orientation of the first page
+        pix = page.get_pixmap(matrix=Matrix(300 / 72, 300 / 72))  # type: ignore[attr-defined]
+        image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    finally:
+        doc.close()
     return image
 
 
@@ -79,10 +83,13 @@ def convert_to_grayscale(image):
 def get_text_orientation(image):
     try:
 
-        temp_file = "temp.png"
-        image.save(temp_file)  # Save the PIL image to a temporary file
-        text = image_to_osd(temp_file)  # Perform OCR on the temporary file
-        os.remove(temp_file)  # Remove the temporary file
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            temp_file = tmp.name
+            image.save(temp_file)  # Save the PIL image to a temporary file
+        try:
+            text = image_to_osd(temp_file)  # Perform OCR on the temporary file
+        finally:
+            os.remove(temp_file)  # Remove the temporary file
 
         for line in text.splitlines():
             if "Rotate: " in line:
