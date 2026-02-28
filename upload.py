@@ -90,6 +90,8 @@ def upload_with_rename(
     try:
         if DEBUG:
             cp.yellow("debug mode, no uploads")
+            # Skip actual upload in debug mode to avoid network/API calls
+            return False, new_filepath
         uploadResult, new_filepath = api.upload(new_filepath, serviceOrderId, doc_type)
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
