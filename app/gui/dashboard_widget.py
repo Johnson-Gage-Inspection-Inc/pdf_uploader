@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
     QWidget,
     QHeaderView,
+    QLayoutItem,
 )
 
 QUALER_SO_URL = "https://jgiquality.qualer.com/ServiceOrder/Info"
@@ -135,7 +136,7 @@ class DashboardWidget(QWidget):
         """Update the watched folders section with clickable links."""
         # Clear existing
         while self.folder_layout.count():
-            child = self.folder_layout.takeAt(0)
+            child: QLayoutItem = self.folder_layout.takeAt(0)
             if child.widget():
                 child.widget().deleteLater()
 
@@ -243,10 +244,20 @@ class DashboardWidget(QWidget):
         return QColor("red")
 
     def _validation_status(self, event):
-        """Return (text, color) for the validation column."""
+        """Return (text, color) for the validation column.
+
+        The status returned by the validator is a lowercase string with
+        underscores (e.g. ``"no_pricing"``).  Present a more human-friendly
+        version in the table by converting underscores to spaces and using
+        title case.  The colour choice continues to be determined by the raw
+        status value so that the mapping in :meth:`color_map` can remain
+        straightforward.
+        """
         if not event.validation_result:
             return ("", None)
-        status = event.validation_result.status
+        status = event.validation_result.status or ""
+        # format for display: no_pricing -> No Pricing, extraction_failed -> Extraction Failed
+        display = status.replace("_", " ").title()
         color_map = {
             "pass": QColor("green"),
             "fail": QColor("red"),
@@ -254,7 +265,7 @@ class DashboardWidget(QWidget):
             "extraction_failed": QColor("darkred"),
             "skipped": QColor("gray"),
         }
-        return (status.upper(), color_map.get(status, QColor("black")))
+        return (display, color_map.get(status, QColor("black")))
 
     def get_event_count(self):
         return len(self._events)
