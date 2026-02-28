@@ -12,7 +12,7 @@ a = Analysis(
         ('.env', '.'),
         ('app/version.py', 'app')
     ],
-    hiddenimports=[],
+    hiddenimports=['httpx', 'httpcore', 'qualer_sdk', 'h11', 'anyio'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
