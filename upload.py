@@ -8,12 +8,11 @@ sudo apt install poppler-utils
 sudo apt install tesseract-ocr (or, install windows tesseract)
 
 windows/linux
-pip3 install PyPDF2 pytesseract requests pypdfium2
+pip3 install -r requirements.txt  # includes PyPDF2, pytesseract, pypdfium2, qualer_sdk from git
 """
 
 from datetime import datetime
 import os
-import sys
 import traceback
 from typing import Tuple
 import app.color_print as cp
@@ -21,13 +20,10 @@ from app.PurchaseOrders import update_PO_numbers, extract_po
 import app.api as api
 import app.pdf as pdf
 from app.config import (
-    QUALER_STAGING_ENDPOINT,
     DEBUG,
     LIVEAPI,
-    QUALER_ENDPOINT,
     LOG_FILE,
 )
-from dotenv import load_dotenv
 from app.orientation import reorient_pdf_for_workorders
 import logging
 
@@ -45,33 +41,6 @@ except FileNotFoundError:
     print(text)
     input("Press Enter to exit...")
     raise SystemExit
-
-
-def get_credentials():
-    """Retrieve credentials from environment variables."""
-    username = os.environ.get("QUALER_EMAIL")
-    password = os.environ.get("QUALER_PASSWORD")
-    return (username, password) if username and password else None
-
-
-def getEnv():
-    # Try to load from environment variables first (useful for CI/CD)
-    if creds := get_credentials():
-        return creds
-
-    # If not found, try loading from .env file
-    base_path = (
-        sys._MEIPASS
-        if getattr(sys, "frozen", False)
-        else os.path.dirname(__file__)
-    )
-    dotenv_path = os.path.join(base_path, ".env")
-    if os.path.exists(dotenv_path):
-        load_dotenv(dotenv_path)
-        if creds := get_credentials():
-            return creds
-
-    raise ValueError("Credentials not found in environment or .env file")
 
 
 # Rename File
@@ -106,12 +75,12 @@ def rename_file(filepath: str, doc_list: list) -> str:
 
 
 def upload_with_rename(
-    filepath: str, serviceOrderId: str, doc_type: str
+    filepath: str, serviceOrderId: int, doc_type: str
 ) -> Tuple[bool, str]:
     """Upload file to Qualer endpoint, and resolve name conflicts"""
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(
-        QUALER_ENDPOINT, token, serviceOrderId
+        serviceOrderId
     )  # get list of documents for the service order
     if doc_list is None:
         doc_list = []
@@ -121,9 +90,9 @@ def upload_with_rename(
     try:
         if DEBUG:
             cp.yellow("debug mode, no uploads")
-        uploadResult, new_filepath = api.upload(
-            token, new_filepath, serviceOrderId, doc_type
-        )
+            # Skip actual upload in debug mode to avoid network/API calls
+            return False, new_filepath
+        uploadResult, new_filepath = api.upload(new_filepath, serviceOrderId, doc_type)
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
         uploadResult = False
@@ -135,7 +104,7 @@ def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str
     try:
         if not os.path.isfile(filepath):  # See if filepath is valid
             return False, filepath
-        if serviceOrderId := api.getServiceOrderId(token, workorder):
+        if serviceOrderId := api.getServiceOrderId(workorder):
             return upload_with_rename(
                 filepath, serviceOrderId, QUALER_DOCUMENT_TYPE
             )  # return uploadResult, new_filepath
@@ -314,7 +283,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
 def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
     po = extract_po(filename)
-    po_dict = update_PO_numbers(token)
+    po_dict = update_PO_numbers()
     cp.white("PO found in file name: " + po)
     successSOs, failedSOs, new_filepath = upload_by_po(
         filepath, po, po_dict, QUALER_DOCUMENT_TYPE
@@ -329,14 +298,6 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
 
 
 if not LIVEAPI:
-    QUALER_ENDPOINT = QUALER_STAGING_ENDPOINT  # noqa: F811
     cp.yellow("Using staging API")
-
-username, password = getEnv()
-_token = api.login(QUALER_ENDPOINT, username, password)
-if not _token:
-    cp.red("Failed to obtain API token. Exiting.")
-    raise SystemExit
-token: str = _token
 
 total = 0

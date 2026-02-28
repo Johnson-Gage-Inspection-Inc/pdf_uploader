@@ -15,8 +15,7 @@ import pytest
 
 def pytest_configure(config):
     """Run before test collection. Set up environment for real module imports."""
-    os.environ.setdefault("QUALER_EMAIL", "test@example.com")
-    os.environ.setdefault("QUALER_PASSWORD", "test_password")
+    os.environ.setdefault("QUALER_API_KEY", "00000000-0000-0000-0000-000000000000")
 
     # Import and patch config before color_print tries to use LOG_FILE
     import app.config
@@ -39,6 +38,7 @@ def pytest_configure(config):
         "app.api",
         "app.PurchaseOrders",
         "app.orientation",
+        "app.qualer_client",
     ]:
         try:
             __import__(mod)

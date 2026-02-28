@@ -1,23 +1,23 @@
 import unittest
 from unittest.mock import patch, MagicMock
-import os
 import sys
 
 # Mock app modules BEFORE importing upload.
 # This must happen before any `from upload import ...` statements,
 # because upload.py executes module-level code on import.
-# upload.py has module-level code (getEnv, api.login, logging.basicConfig)
+# upload.py has module-level code (make_qualer_client, logging.basicConfig)
 # that executes on import, so mocks must be in place first.
 
 mock_config = MagicMock()
-mock_config.QUALER_STAGING_ENDPOINT = "https://staging.example.com"
 mock_config.DEBUG = False
 mock_config.LIVEAPI = True
-mock_config.QUALER_ENDPOINT = "https://api.example.com"
+mock_config.QUALER_ENDPOINT = "https://api.example.com/api"
 mock_config.LOG_FILE = None
 
 mock_api = MagicMock()
-mock_api.login.return_value = "test-token-123"
+
+mock_qualer_client = MagicMock()
+mock_qualer_client.make_qualer_client.return_value = MagicMock()
 
 sys.modules["app"] = MagicMock()
 sys.modules["app.color_print"] = MagicMock()
@@ -26,33 +26,14 @@ sys.modules["app.api"] = mock_api
 sys.modules["app.pdf"] = MagicMock()
 sys.modules["app.config"] = mock_config
 sys.modules["app.orientation"] = MagicMock()
-
-# Provide test credentials so getEnv() doesn't raise ValueError
-os.environ.setdefault("QUALER_EMAIL", "test@example.com")
-os.environ.setdefault("QUALER_PASSWORD", "test_password")
+sys.modules["app.qualer_client"] = mock_qualer_client
 
 # NOW safe to import from upload
-from upload import get_credentials  # noqa: E402
 from upload import rename_file  # noqa: E402
 from upload import upload_with_rename  # noqa: E402
 from upload import fetch_SO_and_upload  # noqa: E402
 from upload import upload_by_po  # noqa: E402
 from upload import handle_po_upload  # noqa: E402
-
-
-class TestGetCredentials(unittest.TestCase):
-    @patch.dict(
-        os.environ,
-        {"QUALER_EMAIL": "test@example.com", "QUALER_PASSWORD": "password123"},
-    )
-    def test_get_credentials_from_env(self):
-        result = get_credentials()
-        self.assertEqual(result, ("test@example.com", "password123"))
-
-    @patch.dict(os.environ, {}, clear=True)
-    def test_get_credentials_missing(self):
-        result = get_credentials()
-        self.assertIsNone(result)
 
 
 class TestRenameFile(unittest.TestCase):
@@ -85,7 +66,7 @@ class TestUploadWithRename(unittest.TestCase):
         mock_get_docs.return_value = ["other_file.pdf"]
         mock_upload.return_value = (True, "/path/to/file.pdf")
 
-        result, filepath = upload_with_rename("/path/to/file.pdf", "SO123", "DOC_TYPE")
+        result, filepath = upload_with_rename("/path/to/file.pdf", 123, "DOC_TYPE")
         self.assertTrue(result)
         self.assertEqual(filepath, "/path/to/file.pdf")
         mock_rename.assert_not_called()
@@ -98,7 +79,7 @@ class TestUploadWithRename(unittest.TestCase):
         mock_rename.return_value = "/path/to/file_1.pdf"
         mock_upload.return_value = (True, "/path/to/file_1.pdf")
 
-        result, filepath = upload_with_rename("/path/to/file.pdf", "SO123", "DOC_TYPE")
+        result, filepath = upload_with_rename("/path/to/file.pdf", 123, "DOC_TYPE")
         self.assertTrue(result)
         mock_rename.assert_called_once()
 
@@ -109,7 +90,7 @@ class TestFetchSOAndUpload(unittest.TestCase):
     @patch("os.path.isfile")
     def test_fetch_so_and_upload_success(self, mock_isfile, mock_get_so, mock_upload):
         mock_isfile.return_value = True
-        mock_get_so.return_value = "SO123"
+        mock_get_so.return_value = 12345
         mock_upload.return_value = (True, "/path/to/file.pdf")
 
         result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
@@ -175,43 +156,6 @@ class TestHandlePOUpload(unittest.TestCase):
         self.assertEqual(new_filepath, "/path/to/file.pdf")
 
 
-class TestGetEnv(unittest.TestCase):
-    """Test the getEnv function for credential retrieval."""
-
-    @patch.dict(
-        os.environ,
-        {"QUALER_EMAIL": "env@test.com", "QUALER_PASSWORD": "env_pass"},
-    )
-    def test_getenv_from_environment(self):
-        from upload import getEnv
-
-        result = getEnv()
-        self.assertEqual(result, ("env@test.com", "env_pass"))
-
-    @patch("upload.load_dotenv")
-    @patch("os.path.exists", return_value=True)
-    @patch.dict(os.environ, {}, clear=True)
-    def test_getenv_from_dotenv(self, mock_exists, mock_load):
-        from upload import getEnv
-
-        def set_env(*args, **kwargs):
-            os.environ["QUALER_EMAIL"] = "dotenv@test.com"
-            os.environ["QUALER_PASSWORD"] = "dotenv_pass"
-
-        mock_load.side_effect = set_env
-        result = getEnv()
-        self.assertEqual(result, ("dotenv@test.com", "dotenv_pass"))
-
-    @patch("upload.load_dotenv")
-    @patch("os.path.exists", return_value=False)
-    @patch.dict(os.environ, {}, clear=True)
-    def test_getenv_no_credentials_raises(self, mock_exists, mock_load):
-        from upload import getEnv
-
-        with self.assertRaises(ValueError):
-            getEnv()
-
-
 class TestRenameFileEdgeCases(unittest.TestCase):
     @patch("upload.pdf.increment_filename")
     @patch("upload.pdf.try_rename")
@@ -240,14 +184,14 @@ class TestUploadWithRenameEdgeCases(unittest.TestCase):
         """When doc list is None, should still proceed."""
         mock_upload.return_value = (True, "/path/to/file.pdf")
 
-        result, filepath = upload_with_rename("/path/to/file.pdf", "SO123", "DOC_TYPE")
+        result, filepath = upload_with_rename("/path/to/file.pdf", 123, "DOC_TYPE")
         self.assertTrue(result)
 
     @patch("upload.api.upload", side_effect=FileExistsError)
     @patch("upload.api.get_service_order_document_list", return_value=[])
     def test_upload_with_rename_file_exists_error(self, mock_get_docs, mock_upload):
         """FileExistsError during upload should return False."""
-        result, filepath = upload_with_rename("/path/to/file.pdf", "SO123", "DOC_TYPE")
+        result, filepath = upload_with_rename("/path/to/file.pdf", 123, "DOC_TYPE")
         self.assertFalse(result)
 
 

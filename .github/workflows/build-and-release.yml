@@ -2,9 +2,11 @@ name: Build and Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
   workflow_dispatch: {}
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -13,21 +15,47 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate date-based version tag
+        id: version
+        shell: pwsh
+        run: |
+          $date = Get-Date -Format "yyyy.MM.dd"
+          # Check for existing tags with today's date
+          $existing = git tag --list "$date*" | Sort-Object
+          if ($existing) {
+            # Find the highest suffix
+            $last = ($existing | Select-Object -Last 1)
+            if ($last -match "\d{4}\.\d{2}\.\d{2}\.(\d+)$") {
+              $next = [int]$Matches[1] + 1
+              $tag = "$date.$next"
+            } else {
+              $tag = "$date.2"
+            }
+          } else {
+            $tag = $date
+          }
+          echo "tag=$tag" >> $env:GITHUB_OUTPUT
+          echo "Generated version tag: $tag"
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.12"
+
+      - name: Enable long paths
+        run: git config --system core.longpaths true
 
       - name: Install dependencies and build
         run: |
-          py -3.10 -m venv myenv
+          py -3.12 -m venv myenv
           .\myenv\Scripts\activate
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          echo "QUALER_EMAIL=${{ secrets.QUALER_EMAIL }}" > .env
-          echo "QUALER_PASSWORD=${{ secrets.QUALER_PASSWORD }}" >> .env
-          echo "__version__ = '${{ github.ref_name }}'" > app/version.py
+          echo "QUALER_API_KEY=${{ secrets.QUALER_API_KEY }}" > .env
+          echo "__version__ = '${{ steps.version.outputs.tag }}'" > app/version.py
           pyinstaller PDF_Uploader.spec
 
       - name: Upload build artifacts
@@ -36,10 +64,12 @@ jobs:
           name: pdf-uploader-build
           path: dist/PDF_Uploader.exe
 
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+
   release:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     needs: build
-    if: startsWith(github.ref, 'refs/tags/')
 
     steps:
       - name: Download build artifacts
@@ -48,15 +78,12 @@ jobs:
           name: pdf-uploader-build
           path: dist
 
-      - name: Create Release
-        id: create_release
+      - name: Create tag and release
         uses: softprops/action-gh-release@v1
         with:
-          name: Release ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: ${{ needs.build.outputs.tag }}
+          tag_name: ${{ needs.build.outputs.tag }}
           generate_release_notes: true
-          body: |
-            Release version ${{ github.ref_name }}
           files: dist/PDF_Uploader.exe
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

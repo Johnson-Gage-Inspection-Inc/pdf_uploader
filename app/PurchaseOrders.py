@@ -3,7 +3,7 @@ import datetime as dt
 import gzip
 import json
 import os
-from typing import Optional
+from typing import Optional, Any
 import app.api as api
 import app.color_print as cp
 from app.config import PO_DICT_FILE
@@ -14,9 +14,9 @@ DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
 def update_dict(lookup: dict, response: list) -> dict:
     for so in response:
-        PrimaryPo = so["PoNumber"]
-        SecondaryPo = so["SecondaryPo"]
-        ServiceOrderId = so["ServiceOrderId"]
+        PrimaryPo = so.po_number
+        SecondaryPo = so.secondary_po
+        ServiceOrderId = so.service_order_id
         if PrimaryPo not in lookup:
             lookup[PrimaryPo] = [ServiceOrderId]
         elif ServiceOrderId not in lookup[PrimaryPo]:
@@ -30,15 +30,13 @@ def update_dict(lookup: dict, response: list) -> dict:
 
 
 def _get_PO_numbers(
-    token: str,
     start_str="2020-08-13T00:00:00",
     end_str=dt.datetime.now().strftime(DT_FORMAT),
     increment=91,
-) -> dict[str, list[str]]:
+) -> dict[str, list[Any]]:
     """Get a dictionary of PO numbers and their corresponding service order IDs from the API.
 
     Args:
-        token (str): The API token.
         start_str (str, optional): Start date for PO search.
             Format: "%Y-%m-%dT%H:%M:%S". Defaults to "2020-08-13T00:00:00".
         end_str (str, optional): End date for PO search.
@@ -48,7 +46,7 @@ def _get_PO_numbers(
     Returns:
         lookup (dict): PO numbers and their corresponding service order IDs.
     """
-    lookup: dict[str, list[str]] = {}
+    lookup: dict[str, list[Any]] = {}
 
     start_date = dt.datetime.strptime(start_str, DT_FORMAT)
     end_date = dt.datetime.strptime(end_str, DT_FORMAT)
@@ -60,11 +58,10 @@ def _get_PO_numbers(
         cp.white(
             f"Getting service orders from {from_date.strftime(DT_FORMAT)} to {to_date.strftime(DT_FORMAT)}..."
         )
-        data = {
-            "from": from_date.strftime(DT_FORMAT),
-            "to": to_date.strftime(DT_FORMAT),
-        }  # Set the parameters for the API call
-        response = api.get_service_orders(data, token)
+        response = api.get_service_orders(
+            from_=from_date.strftime(DT_FORMAT),
+            to=to_date.strftime(DT_FORMAT),
+        )
         lookup = update_dict(lookup, response)
         if to_date > end_date:
             break
@@ -75,12 +72,11 @@ def _get_PO_numbers(
 
 
 def update_PO_numbers(
-    token: str, modified_after: Optional[str] = None
-) -> dict[str, list[str]]:
+    modified_after: Optional[str] = None,
+) -> dict[str, list[Any]]:
     """Update the PO dictionary with new PO numbers from the API.
 
     Args:
-        token (str): The API token.
         modified_after (str, optional): Only get service orders modified after this date.
             Format: "%Y-%m-%dT%H:%M:%S". Defaults to None.
 
@@ -94,12 +90,12 @@ def update_PO_numbers(
         cp.green(f"Using PO dictionary file at: {PO_DICT_FILE}")
     except FileNotFoundError:
         cp.yellow(f"PO dictionary file not found: {PO_DICT_FILE}. Building from API...")
-        lookup = _get_PO_numbers(token)
+        lookup = _get_PO_numbers()
         save_as_zip_file(lookup)
         return lookup  # Just built the full dictionary, no need to check for updates
     except gzip.BadGzipFile:
         cp.red("Error: The file is not a valid gzip file.")
-        lookup = _get_PO_numbers(token)
+        lookup = _get_PO_numbers()
         save_as_zip_file(lookup)
         return lookup  # Just rebuilt the full dictionary
 
@@ -110,8 +106,7 @@ def update_PO_numbers(
     if last_modified < dt.datetime.now():
         if modified_after is None:
             modified_after = last_modified.strftime(DT_FORMAT)
-        data = {"modifiedAfter": modified_after}
-        response = api.get_service_orders(data, token)
+        response = api.get_service_orders(modified_after=modified_after)
         if len(response) > 0:
             cp.yellow(f"Saving dictionary to {os.path.relpath(PO_DICT_FILE)}...")
             lookup = update_dict(lookup, response)
@@ -122,7 +117,7 @@ def update_PO_numbers(
     return lookup
 
 
-def save_as_zip_file(lookup: dict[str, list[str]]):
+def save_as_zip_file(lookup: dict[str, list[Any]]):
     """Compress the dictionary and write to the file.
 
     Args:
