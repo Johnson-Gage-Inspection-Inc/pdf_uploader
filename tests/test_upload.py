@@ -26,6 +26,7 @@ sys.modules["app.api"] = mock_api
 sys.modules["app.pdf"] = MagicMock()
 sys.modules["app.config"] = mock_config
 sys.modules["app.orientation"] = MagicMock()
+sys.modules["app.po_validator"] = MagicMock()
 sys.modules["app.qualer_client"] = mock_qualer_client
 
 # NOW safe to import from upload
