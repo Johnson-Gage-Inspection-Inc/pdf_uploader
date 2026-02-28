@@ -8,7 +8,6 @@ import app.api as api
 import app.color_print as cp
 from app.config import PO_DICT_FILE
 import re
-from qualer_sdk import AuthenticatedClient
 
 DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
@@ -31,7 +30,6 @@ def update_dict(lookup: dict, response: list) -> dict:
 
 
 def _get_PO_numbers(
-    client: AuthenticatedClient,
     start_str="2020-08-13T00:00:00",
     end_str=dt.datetime.now().strftime(DT_FORMAT),
     increment=91,
@@ -39,7 +37,6 @@ def _get_PO_numbers(
     """Get a dictionary of PO numbers and their corresponding service order IDs from the API.
 
     Args:
-        client: Authenticated Qualer SDK client.
         start_str (str, optional): Start date for PO search.
             Format: "%Y-%m-%dT%H:%M:%S". Defaults to "2020-08-13T00:00:00".
         end_str (str, optional): End date for PO search.
@@ -62,7 +59,6 @@ def _get_PO_numbers(
             f"Getting service orders from {from_date.strftime(DT_FORMAT)} to {to_date.strftime(DT_FORMAT)}..."
         )
         response = api.get_service_orders(
-            client,
             from_=from_date.strftime(DT_FORMAT),
             to=to_date.strftime(DT_FORMAT),
         )
@@ -76,12 +72,11 @@ def _get_PO_numbers(
 
 
 def update_PO_numbers(
-    client: AuthenticatedClient, modified_after: Optional[str] = None
+    modified_after: Optional[str] = None,
 ) -> dict[str, list[Any]]:
     """Update the PO dictionary with new PO numbers from the API.
 
     Args:
-        client: Authenticated Qualer SDK client.
         modified_after (str, optional): Only get service orders modified after this date.
             Format: "%Y-%m-%dT%H:%M:%S". Defaults to None.
 
@@ -95,12 +90,12 @@ def update_PO_numbers(
         cp.green(f"Using PO dictionary file at: {PO_DICT_FILE}")
     except FileNotFoundError:
         cp.yellow(f"PO dictionary file not found: {PO_DICT_FILE}. Building from API...")
-        lookup = _get_PO_numbers(client)
+        lookup = _get_PO_numbers()
         save_as_zip_file(lookup)
         return lookup  # Just built the full dictionary, no need to check for updates
     except gzip.BadGzipFile:
         cp.red("Error: The file is not a valid gzip file.")
-        lookup = _get_PO_numbers(client)
+        lookup = _get_PO_numbers()
         save_as_zip_file(lookup)
         return lookup  # Just rebuilt the full dictionary
 
@@ -111,7 +106,7 @@ def update_PO_numbers(
     if last_modified < dt.datetime.now():
         if modified_after is None:
             modified_after = last_modified.strftime(DT_FORMAT)
-        response = api.get_service_orders(client, modified_after=modified_after)
+        response = api.get_service_orders(modified_after=modified_after)
         if len(response) > 0:
             cp.yellow(f"Saving dictionary to {os.path.relpath(PO_DICT_FILE)}...")
             lookup = update_dict(lookup, response)

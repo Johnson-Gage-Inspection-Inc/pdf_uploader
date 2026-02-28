@@ -54,8 +54,7 @@ class TestGetServiceOrders(unittest.TestCase):
         mock_so.po_number = "PO100"
         mock_sync.return_value = [mock_so]
 
-        mock_client = MagicMock()
-        result = get_service_orders(mock_client, work_order_number="WO-001")
+        result = get_service_orders(work_order_number="WO-001")
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0].service_order_id, "SO1")
 
@@ -65,8 +64,7 @@ class TestGetServiceOrders(unittest.TestCase):
         from app.api import get_service_orders
 
         mock_sync.return_value = None
-        mock_client = MagicMock()
-        result = get_service_orders(mock_client, work_order_number="WO-999")
+        result = get_service_orders(work_order_number="WO-999")
         self.assertEqual(result, [])
         mock_cp.red.assert_called()
 
@@ -80,8 +78,7 @@ class TestGetServiceOrderId(unittest.TestCase):
         mock_so = MagicMock()
         mock_so.service_order_id = 12345
         mock_get_so.return_value = [mock_so]
-        mock_client = MagicMock()
-        result = getServiceOrderId(mock_client, "WO-001")
+        result = getServiceOrderId("WO-001")
         self.assertEqual(result, 12345)
 
     @patch("app.api.get_service_orders")
@@ -90,8 +87,7 @@ class TestGetServiceOrderId(unittest.TestCase):
         from app.api import getServiceOrderId
 
         mock_get_so.return_value = []
-        mock_client = MagicMock()
-        result = getServiceOrderId(mock_client, "WO-999")
+        result = getServiceOrderId("WO-999")
         self.assertIsNone(result)
 
 
@@ -107,10 +103,7 @@ class TestUpload(unittest.TestCase):
         mock_response.status_code = 200
         mock_sync_detailed.return_value = mock_response
 
-        mock_client = MagicMock()
-        result, filepath = upload(
-            mock_client, "/path/to/file.pdf", 123, "ordercertificate"
-        )
+        result, filepath = upload("/path/to/file.pdf", 123, "ordercertificate")
         self.assertTrue(result)
 
     @patch("app.api.cp")
@@ -118,10 +111,7 @@ class TestUpload(unittest.TestCase):
     def test_upload_file_not_exists(self, mock_exists, mock_cp):
         from app.api import upload
 
-        mock_client = MagicMock()
-        result, filepath = upload(
-            mock_client, "/nonexistent.pdf", 123, "ordercertificate"
-        )
+        result, filepath = upload("/nonexistent.pdf", 123, "ordercertificate")
         self.assertFalse(result)
 
     @patch("app.api.upload_documents_post_2.sync_detailed")
@@ -152,10 +142,7 @@ class TestUpload(unittest.TestCase):
 
         mock_sync_detailed.side_effect = [locked_response, success_response]
 
-        mock_client = MagicMock()
-        result, filepath = upload(
-            mock_client, "/path/to/file.pdf", 123, "ordercertificate"
-        )
+        result, filepath = upload("/path/to/file.pdf", 123, "ordercertificate")
         self.assertTrue(result)
 
 
@@ -171,17 +158,15 @@ class TestGetServiceOrderDocumentList(unittest.TestCase):
         doc2.file_name = "doc2.pdf"
         mock_sync.return_value = [doc1, doc2]
 
-        mock_client = MagicMock()
-        result = get_service_order_document_list(mock_client, 123)
+        result = get_service_order_document_list(123)
         self.assertEqual(result, ["doc1.pdf", "doc2.pdf"])
 
     @patch("app.api.cp")
     def test_get_document_list_no_service_order_raises(self, mock_cp):
         from app.api import get_service_order_document_list
 
-        mock_client = MagicMock()
         with self.assertRaises(SystemExit):
-            get_service_order_document_list(mock_client, None)
+            get_service_order_document_list(None)
 
     @patch("app.api.get_documents_list.sync")
     @patch("app.api.cp")
@@ -189,8 +174,7 @@ class TestGetServiceOrderDocumentList(unittest.TestCase):
         from app.api import get_service_order_document_list
 
         mock_sync.return_value = None
-        mock_client = MagicMock()
-        result = get_service_order_document_list(mock_client, 123)
+        result = get_service_order_document_list(123)
         self.assertIsNone(result)
 
 

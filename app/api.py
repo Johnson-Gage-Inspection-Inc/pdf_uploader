@@ -6,7 +6,6 @@ import httpx
 import app.color_print as cp
 import app.pdf as pdf
 from app.connectivity import check_connectivity
-from qualer_sdk import AuthenticatedClient
 from qualer_sdk.api.service_orders import get_work_orders
 from qualer_sdk.api.service_order_documents import (
     get_documents_list,
@@ -15,6 +14,7 @@ from qualer_sdk.api.service_order_documents import (
 from qualer_sdk.types import File
 from typing import List, Optional
 import json
+from app.qualer_client import make_qualer_client
 
 ERROR_FLAG = "ERROR:"
 
@@ -38,7 +38,6 @@ def handle_exception(exception, response=None) -> None:
 
 
 def get_service_orders(
-    client: AuthenticatedClient,
     *,
     work_order_number: Optional[str] = None,
     from_: Optional[str] = None,
@@ -49,7 +48,6 @@ def get_service_orders(
     """Fetch service orders from the Qualer API.
 
     Args:
-        client: Authenticated Qualer SDK client.
         work_order_number: Filter by work order number.
         from_: Filter by start date (ISO format).
         to: Filter by end date (ISO format).
@@ -74,7 +72,7 @@ def get_service_orders(
         kwargs["status"] = status
 
     try:
-        response = get_work_orders.sync(client=client, **kwargs)
+        response = get_work_orders.sync(client=make_qualer_client(), **kwargs)
     except httpx.ConnectError:
         check_connectivity()
         cp.red("Unable to connect to Qualer. Aborting...")
@@ -89,13 +87,10 @@ def get_service_orders(
     return response
 
 
-def getServiceOrderId(
-    client: AuthenticatedClient, workOrderNumber: str
-) -> Optional[int]:
+def getServiceOrderId(workOrderNumber: str) -> Optional[int]:
     """Get the service order ID for a work order number.
 
     Args:
-        client: Authenticated Qualer SDK client.
         workOrderNumber: Work order number.
 
     Returns:
@@ -103,7 +98,7 @@ def getServiceOrderId(
     """
     cp.white("Fetching service order id for work order: " + workOrderNumber + "...")
     try:
-        response = get_service_orders(client, work_order_number=workOrderNumber)
+        response = get_service_orders(work_order_number=workOrderNumber)
         if len(response) == 0:
             cp.red(ERROR_FLAG)
             cp.red(f"No service order found for work order: {workOrderNumber}")
@@ -115,7 +110,6 @@ def getServiceOrderId(
 
 
 def upload(
-    client: AuthenticatedClient,
     filepath: str,
     serviceOrderId: int,
     qualertype: str,
@@ -123,7 +117,6 @@ def upload(
     """Upload a file to a Qualer service order.
 
     Args:
-        client: Authenticated Qualer SDK client.
         filepath: Path to the file to upload.
         serviceOrderId: The service order ID.
         qualertype: The Qualer document/report type.
@@ -165,7 +158,7 @@ def upload(
             try:
                 r = upload_documents_post_2.sync_detailed(
                     service_order_id=serviceOrderId,
-                    client=client,
+                    client=make_qualer_client(),
                     files=[upload_file],
                     model_report_type=qualertype,
                 )
@@ -204,13 +197,10 @@ def upload(
     return False, filepath
 
 
-def get_service_order_document_list(
-    client: AuthenticatedClient, ServiceOrderId: int
-) -> Optional[List[str]]:
+def get_service_order_document_list(ServiceOrderId: int) -> Optional[List[str]]:
     """Get a list of document filenames for a service order.
 
     Args:
-        client: Authenticated Qualer SDK client.
         ServiceOrderId: The service order ID.
 
     Returns:
@@ -227,7 +217,7 @@ def get_service_order_document_list(
 
     try:
         response = get_documents_list.sync(
-            service_order_id=ServiceOrderId, client=client
+            service_order_id=ServiceOrderId, client=make_qualer_client()
         )
     except Exception as e:
         handle_exception(e)

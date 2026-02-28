@@ -80,7 +80,7 @@ def upload_with_rename(
     """Upload file to Qualer endpoint, and resolve name conflicts"""
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(
-        client, serviceOrderId
+        serviceOrderId
     )  # get list of documents for the service order
     if doc_list is None:
         doc_list = []
@@ -90,9 +90,7 @@ def upload_with_rename(
     try:
         if DEBUG:
             cp.yellow("debug mode, no uploads")
-        uploadResult, new_filepath = api.upload(
-            client, new_filepath, serviceOrderId, doc_type
-        )
+        uploadResult, new_filepath = api.upload(new_filepath, serviceOrderId, doc_type)
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
         uploadResult = False
@@ -104,7 +102,7 @@ def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str
     try:
         if not os.path.isfile(filepath):  # See if filepath is valid
             return False, filepath
-        if serviceOrderId := api.getServiceOrderId(client, workorder):
+        if serviceOrderId := api.getServiceOrderId(workorder):
             return upload_with_rename(
                 filepath, serviceOrderId, QUALER_DOCUMENT_TYPE
             )  # return uploadResult, new_filepath
@@ -283,7 +281,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
 def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
     po = extract_po(filename)
-    po_dict = update_PO_numbers(client)
+    po_dict = update_PO_numbers()
     cp.white("PO found in file name: " + po)
     successSOs, failedSOs, new_filepath = upload_by_po(
         filepath, po, po_dict, QUALER_DOCUMENT_TYPE
@@ -299,9 +297,5 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
 
 if not LIVEAPI:
     cp.yellow("Using staging API")
-
-from app.qualer_client import make_qualer_client  # noqa: E402
-
-client = make_qualer_client()
 
 total = 0

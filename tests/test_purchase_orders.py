@@ -153,11 +153,10 @@ class TestUpdatePONumbers(unittest.TestCase):
     def test_file_not_found_rebuilds(self, mock_cp, mock_api, mock_save):
         from app.PurchaseOrders import update_PO_numbers
 
-        mock_client = MagicMock()
         with tempfile.TemporaryDirectory() as tmpdir:
             nonexistent = os.path.join(tmpdir, "missing.json.gz")
             with patch("app.PurchaseOrders.PO_DICT_FILE", nonexistent):
-                result = update_PO_numbers(mock_client)
+                result = update_PO_numbers()
         self.assertIsInstance(result, dict)
 
     @patch("app.PurchaseOrders.save_as_zip_file")
@@ -166,7 +165,6 @@ class TestUpdatePONumbers(unittest.TestCase):
     def test_valid_file_no_updates(self, mock_cp, mock_api, mock_save):
         from app.PurchaseOrders import update_PO_numbers
 
-        mock_client = MagicMock()
         test_data = {"PO100": ["SO1"]}
         with tempfile.NamedTemporaryFile(suffix=".json.gz", delete=False) as f:
             temp_path = f.name
@@ -174,7 +172,7 @@ class TestUpdatePONumbers(unittest.TestCase):
 
         try:
             with patch("app.PurchaseOrders.PO_DICT_FILE", temp_path):
-                result = update_PO_numbers(mock_client)
+                result = update_PO_numbers()
             self.assertEqual(result["PO100"], ["SO1"])
         finally:
             os.unlink(temp_path)
