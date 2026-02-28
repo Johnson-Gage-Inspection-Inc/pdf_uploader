@@ -150,12 +150,12 @@ def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str
 
 # Get service order ID and upload file to Qualer endpoint
 def upload_by_po(
-    filepath: str, po: str, dict: dict, QUALER_DOCUMENT_TYPE: str
+    filepath: str, po: str, po_dict: dict, QUALER_DOCUMENT_TYPE: str
 ) -> Tuple[list, list, str]:
-    if po not in dict:
+    if po not in po_dict:
         cp.yellow(f"PO# {po} not found in Qualer.")
         return [], [], filepath
-    serviceOrderIds = dict[po]
+    serviceOrderIds = po_dict[po]
     cp.green(
         f"Found {len(serviceOrderIds)} service orders for PO {po}: {serviceOrderIds}"
     )
@@ -293,16 +293,10 @@ def process_file(filepath: str, qualer_parameters: tuple):
         elif filepath:
             # Archive only version:
             try:
-                # Try moving the file to the archive folder
+                # Move the file to the archive folder.
+                # move_file handles FileExistsError internally
+                # by incrementing the destination filename.
                 pdf.move_file(filepath, OUTPUT_DIR)
-            except FileExistsError:
-                # Resolve naming conflict in the Archives folder
-                new_filepath = filepath
-                while True:
-                    new_filepath = pdf.increment_filename(new_filepath)
-                    result = pdf.move_file(new_filepath, OUTPUT_DIR)
-                    if result:
-                        break
             except Exception as e:
                 cp.red(e)
                 traceback.print_exc()

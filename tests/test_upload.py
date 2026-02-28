@@ -3,17 +3,35 @@ from unittest.mock import patch, MagicMock
 import os
 import sys
 
-# Mock the app modules before importing upload
+# Mock app modules BEFORE importing upload.
 # This must happen before any `from upload import ...` statements,
 # because upload.py executes module-level code on import.
+# upload.py has module-level code (getEnv, api.login, logging.basicConfig)
+# that executes on import, so mocks must be in place first.
+
+mock_config = MagicMock()
+mock_config.QUALER_STAGING_ENDPOINT = "https://staging.example.com"
+mock_config.DEBUG = False
+mock_config.LIVEAPI = True
+mock_config.QUALER_ENDPOINT = "https://api.example.com"
+mock_config.LOG_FILE = None
+
+mock_api = MagicMock()
+mock_api.login.return_value = "test-token-123"
+
 sys.modules["app"] = MagicMock()
 sys.modules["app.color_print"] = MagicMock()
 sys.modules["app.PurchaseOrders"] = MagicMock()
-sys.modules["app.api"] = MagicMock()
+sys.modules["app.api"] = mock_api
 sys.modules["app.pdf"] = MagicMock()
-sys.modules["app.config"] = MagicMock()
+sys.modules["app.config"] = mock_config
 sys.modules["app.orientation"] = MagicMock()
 
+# Provide test credentials so getEnv() doesn't raise ValueError
+os.environ.setdefault("QUALER_EMAIL", "test@example.com")
+os.environ.setdefault("QUALER_PASSWORD", "test_password")
+
+# NOW safe to import from upload
 from upload import get_credentials  # noqa: E402
 from upload import rename_file  # noqa: E402
 from upload import upload_with_rename  # noqa: E402
