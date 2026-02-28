@@ -13,6 +13,7 @@ pip3 install -r requirements.txt  # includes PyPDF2, pytesseract, pypdfium2, qua
 
 from datetime import datetime
 import os
+import tempfile
 import traceback
 from typing import Tuple
 import app.color_print as cp
@@ -25,6 +26,7 @@ from app.config import (
     LOG_FILE,
 )
 from app.orientation import reorient_pdf_for_workorders
+from app.po_validator import validate_and_annotate
 import logging
 
 try:
@@ -164,7 +166,8 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     cp.blue(f"Processing file: {filepath}")
     # unpack parameters
-    INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters
+    INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters[:4]
+    VALIDATE_PO = qualer_parameters[4] if len(qualer_parameters) > 4 else False
 
     global total
     new_filepath: str | bool = False
@@ -175,7 +178,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
     # Check for PO in file name
     if filename.startswith("PO"):
         uploadResult, new_filepath = handle_po_upload(
-            filepath, QUALER_DOCUMENT_TYPE, filename
+            filepath, QUALER_DOCUMENT_TYPE, filename, VALIDATE_PO
         )
 
     if not uploadResult:
@@ -281,7 +284,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
         logging.debug(traceback.format_exc())
 
 
-def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
+def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, validate_po=False):
     po = extract_po(filename)
     po_dict = update_PO_numbers()
     cp.white("PO found in file name: " + po)
@@ -292,9 +295,108 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename):
     if successSOs:
         cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
         uploadResult = True
+        # Run PO validation if enabled for this folder
+        if validate_po:
+            _run_po_validation(filepath, new_filepath, successSOs, filename)
     if failedSOs:
         cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
     return uploadResult, new_filepath
+
+
+def _run_po_validation(
+    original_filepath: str,
+    current_filepath: str,
+    service_order_ids: list,
+    filename: str,
+) -> None:
+    """Validate a PO PDF against Qualer work items and upload annotated version.
+
+    This runs after a successful PO upload. It extracts line items from the PDF,
+    compares prices against Qualer work items, annotates the PDF with results,
+    and uploads the annotated version back to Qualer.
+
+    Failures here do NOT block the main upload flow.
+    """
+    # Read the PDF bytes (use the current filepath in case it was renamed)
+    pdf_path = (
+        current_filepath
+        if isinstance(current_filepath, str) and os.path.isfile(current_filepath)
+        else original_filepath
+    )
+    if not os.path.isfile(pdf_path):
+        cp.yellow(f"PO validation skipped: file not found at {pdf_path}")
+        return
+
+    try:
+        with open(pdf_path, "rb") as f:
+            pdf_bytes = f.read()
+    except Exception as e:
+        cp.yellow(f"PO validation skipped: could not read {pdf_path}: {e}")
+        return
+
+    for service_order_id in service_order_ids:
+        try:
+            cp.blue(f"Running PO validation for SO# {service_order_id}...")
+            work_items = api.get_work_items(service_order_id)
+            if not work_items:
+                cp.yellow(f"PO validation: no work items for SO# {service_order_id}")
+                continue
+
+            annotated_bytes, annotated_name, result = validate_and_annotate(
+                pdf_bytes=pdf_bytes,
+                service_order_id=service_order_id,
+                work_items=work_items,
+                document_name=filename,
+            )
+
+            status_msg = f"PO validation result: {result.status}"
+            if result.status == "pass":
+                cp.green(status_msg)
+            elif result.status == "fail":
+                cp.red(status_msg)
+            else:
+                cp.yellow(status_msg)
+
+            # Upload annotated PDF if we have one
+            if annotated_bytes and not DEBUG:
+                cp.white(f"Uploading annotated PO: {annotated_name}")
+                # Write to a temporary file for upload
+                with tempfile.NamedTemporaryFile(
+                    suffix=".pdf", prefix="po_annotated_", delete=False
+                ) as tmp:
+                    tmp.write(annotated_bytes)
+                    tmp_path = tmp.name
+                try:
+                    # Rename temp file to the desired annotated name
+                    annotated_path = None
+                    annotated_path = os.path.join(
+                        os.path.dirname(tmp_path), annotated_name
+                    )
+                    if os.path.exists(annotated_path):
+                        os.remove(annotated_path)
+                    os.rename(tmp_path, annotated_path)
+                    success, _ = api.upload(annotated_path, service_order_id, "general")
+                    if success:
+                        cp.green(f"Annotated PO uploaded for SO# {service_order_id}")
+                    else:
+                        cp.red(
+                            f"Failed to upload annotated PO for SO# {service_order_id}"
+                        )
+                finally:
+                    # Clean up temp files
+                    for p in (
+                        tmp_path,
+                        annotated_path if annotated_path is not None else "",
+                    ):
+                        if p and os.path.exists(p):
+                            try:
+                                os.remove(p)
+                            except OSError:
+                                pass
+
+        except Exception as e:
+            cp.yellow(f"PO validation failed for SO# {service_order_id}: {e}")
+            logging.debug(traceback.format_exc())
 
 
 if not LIVEAPI:

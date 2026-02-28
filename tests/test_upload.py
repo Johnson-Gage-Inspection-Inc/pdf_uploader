@@ -26,6 +26,7 @@ sys.modules["app.api"] = mock_api
 sys.modules["app.pdf"] = MagicMock()
 sys.modules["app.config"] = mock_config
 sys.modules["app.orientation"] = MagicMock()
+sys.modules["app.po_validator"] = MagicMock()
 sys.modules["app.qualer_client"] = mock_qualer_client
 
 # NOW safe to import from upload
@@ -34,6 +35,7 @@ from upload import upload_with_rename  # noqa: E402
 from upload import fetch_SO_and_upload  # noqa: E402
 from upload import upload_by_po  # noqa: E402
 from upload import handle_po_upload  # noqa: E402
+from upload import _run_po_validation  # noqa: E402
 
 
 class TestRenameFile(unittest.TestCase):
@@ -245,6 +247,51 @@ class TestFetchSOAndUploadEdgeCases(unittest.TestCase):
     def test_fetch_so_exception(self, mock_isfile, mock_get_so):
         result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
         self.assertFalse(result)
+
+
+class TestRunPOValidation(unittest.TestCase):
+    @patch("upload.api.get_work_items", return_value=[])
+    @patch("os.path.isfile", return_value=True)
+    def test_no_work_items_skips_annotation(self, mock_isfile, mock_work_items):
+        """When no work items are found, validation is skipped without error."""
+        with patch("builtins.open", unittest.mock.mock_open(read_data=b"%PDF")):
+            _run_po_validation("/path/to/po.pdf", "/path/to/po.pdf", [123], "po.pdf")
+        mock_work_items.assert_called_once_with(123)
+
+    @patch("upload.api.upload", return_value=(True, "/tmp/po_annotated_x.pdf"))
+    @patch("upload.api.get_work_items")
+    @patch("os.path.isfile", return_value=True)
+    def test_annotated_pdf_uploaded_on_success(
+        self, mock_isfile, mock_work_items, mock_upload
+    ):
+        """When annotated bytes are returned and DEBUG is False, upload is called."""
+        mock_work_items.return_value = [MagicMock()]
+        annotated_bytes = b"%PDF annotated"
+        mock_result = MagicMock()
+        mock_result.status = "pass"
+        sys.modules["app.po_validator"].validate_and_annotate.return_value = (
+            annotated_bytes,
+            "po_annotated.pdf",
+            mock_result,
+        )
+        with patch("builtins.open", unittest.mock.mock_open(read_data=b"%PDF")):
+            _run_po_validation("/path/to/po.pdf", "/path/to/po.pdf", [123], "po.pdf")
+        mock_upload.assert_called_once()
+
+    @patch("upload.api.get_work_items", side_effect=Exception("Qualer down"))
+    @patch("os.path.isfile", return_value=True)
+    def test_validation_exception_does_not_raise(self, mock_isfile, mock_work_items):
+        """Exceptions during validation are caught and do not propagate."""
+        with patch("builtins.open", unittest.mock.mock_open(read_data=b"%PDF")):
+            # Should not raise
+            _run_po_validation("/path/to/po.pdf", "/path/to/po.pdf", [123], "po.pdf")
+
+    @patch("upload.api.get_work_items")
+    @patch("os.path.isfile", return_value=False)
+    def test_file_not_found_returns_early(self, mock_isfile, mock_get_work_items):
+        """When the PDF file does not exist, validation returns early."""
+        _run_po_validation("/missing.pdf", "/missing.pdf", [123], "missing.pdf")
+        mock_get_work_items.assert_not_called()
 
 
 if __name__ == "__main__":
