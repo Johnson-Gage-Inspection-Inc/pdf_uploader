@@ -317,7 +317,11 @@ def _run_po_validation(
     Failures here do NOT block the main upload flow.
     """
     # Read the PDF bytes (use the current filepath in case it was renamed)
-    pdf_path = current_filepath if isinstance(current_filepath, str) and os.path.isfile(current_filepath) else original_filepath
+    pdf_path = (
+        current_filepath
+        if isinstance(current_filepath, str) and os.path.isfile(current_filepath)
+        else original_filepath
+    )
     if not os.path.isfile(pdf_path):
         cp.yellow(f"PO validation skipped: file not found at {pdf_path}")
         return
@@ -357,6 +361,7 @@ def _run_po_validation(
                 cp.white(f"Uploading annotated PO: {annotated_name}")
                 # Write to a temporary file for upload
                 import tempfile
+
                 with tempfile.NamedTemporaryFile(
                     suffix=".pdf", prefix="po_annotated_", delete=False
                 ) as tmp:
@@ -370,16 +375,19 @@ def _run_po_validation(
                     if os.path.exists(annotated_path):
                         os.remove(annotated_path)
                     os.rename(tmp_path, annotated_path)
-                    success, _ = api.upload(
-                        annotated_path, service_order_id, "general"
-                    )
+                    success, _ = api.upload(annotated_path, service_order_id, "general")
                     if success:
                         cp.green(f"Annotated PO uploaded for SO# {service_order_id}")
                     else:
-                        cp.red(f"Failed to upload annotated PO for SO# {service_order_id}")
+                        cp.red(
+                            f"Failed to upload annotated PO for SO# {service_order_id}"
+                        )
                 finally:
                     # Clean up temp files
-                    for p in (tmp_path, annotated_path if 'annotated_path' in dir() else ''):
+                    for p in (
+                        tmp_path,
+                        annotated_path if "annotated_path" in dir() else "",
+                    ):
                         if p and os.path.exists(p):
                             try:
                                 os.remove(p)
