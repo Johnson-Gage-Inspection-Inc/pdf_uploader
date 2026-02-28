@@ -2,14 +2,10 @@ import unittest
 from unittest.mock import patch, MagicMock
 import os
 import sys
-from upload import get_credentials
-from upload import rename_file
-from upload import upload_with_rename
-from upload import fetch_SO_and_upload
-from upload import upload_by_po
-from upload import handle_po_upload
 
 # Mock the app modules before importing upload
+# This must happen before any `from upload import ...` statements,
+# because upload.py executes module-level code on import.
 sys.modules["app"] = MagicMock()
 sys.modules["app.color_print"] = MagicMock()
 sys.modules["app.PurchaseOrders"] = MagicMock()
@@ -17,6 +13,13 @@ sys.modules["app.api"] = MagicMock()
 sys.modules["app.pdf"] = MagicMock()
 sys.modules["app.config"] = MagicMock()
 sys.modules["app.orientation"] = MagicMock()
+
+from upload import get_credentials  # noqa: E402
+from upload import rename_file  # noqa: E402
+from upload import upload_with_rename  # noqa: E402
+from upload import fetch_SO_and_upload  # noqa: E402
+from upload import upload_by_po  # noqa: E402
+from upload import handle_po_upload  # noqa: E402
 
 
 class TestGetCredentials(unittest.TestCase):
