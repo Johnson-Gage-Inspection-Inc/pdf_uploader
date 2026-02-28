@@ -159,6 +159,38 @@ def upload_by_po(
     return successSOs, failedSOs, filepath
 
 
+def _emit_event(
+    filepath,
+    filename,
+    success,
+    work_orders,
+    service_order_ids,
+    error_message,
+    validation_result,
+    folder_label,
+):
+    """Emit a ProcessingEvent to the GUI event bus (no-op in CLI mode)."""
+    try:
+        from app.event_bus import get_bus, ProcessingEvent
+
+        bus = get_bus()
+        if bus:
+            event = ProcessingEvent(
+                filepath=filepath,
+                filename=filename,
+                timestamp=datetime.now(),
+                success=success,
+                work_orders=list(work_orders),
+                service_order_ids=list(service_order_ids),
+                error_message=error_message,
+                validation_result=validation_result,
+                folder_label=folder_label,
+            )
+            bus.file_processing_finished.emit(event)
+    except Exception:
+        pass  # Never let event emission break the upload flow
+
+
 # Main function
 def process_file(filepath: str, qualer_parameters: tuple):
     if not os.path.isfile(filepath):
@@ -174,12 +206,16 @@ def process_file(filepath: str, qualer_parameters: tuple):
     total += 1
     filename = os.path.basename(filepath)
     uploadResult = False
+    service_order_ids = []
+    work_orders = []
+    validation_result = None
 
     # Check for PO in file name
     if filename.startswith("PO"):
-        uploadResult, new_filepath = handle_po_upload(
-            filepath, QUALER_DOCUMENT_TYPE, filename, VALIDATE_PO
+        uploadResult, new_filepath, successSOs, failedSOs, validation_result = (
+            handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, VALIDATE_PO)
         )
+        service_order_ids = successSOs + failedSOs
 
     if not uploadResult:
         # Check for work orders in file body or file name
@@ -187,6 +223,16 @@ def process_file(filepath: str, qualer_parameters: tuple):
         if not workorders_result:
             workorders_result = reorient_pdf_for_workorders(filepath, REJECT_DIR)
         if not workorders_result:
+            _emit_event(
+                filepath,
+                filename,
+                False,
+                [],
+                [],
+                "No work orders found",
+                None,
+                INPUT_DIR,
+            )
             return False
 
         # if work orders found in filename, upload file to Qualer endpoint(s)
@@ -252,6 +298,16 @@ def process_file(filepath: str, qualer_parameters: tuple):
     if not uploadResult and os.path.isfile(filepath):
         cp.red("Failed to upload " + filepath + ". Moving to reject directory...")
         pdf.move_file(filepath, REJECT_DIR)
+        _emit_event(
+            filepath,
+            filename,
+            False,
+            work_orders,
+            service_order_ids,
+            "Upload failed",
+            validation_result,
+            INPUT_DIR,
+        )
         return False
 
     # If the file was renamed, update the filepath
@@ -283,6 +339,17 @@ def process_file(filepath: str, qualer_parameters: tuple):
         cp.yellow(f"Failed to remove file: {filepath} | {e}")
         logging.debug(traceback.format_exc())
 
+    _emit_event(
+        filepath,
+        filename,
+        True,
+        work_orders,
+        service_order_ids,
+        "",
+        validation_result,
+        INPUT_DIR,
+    )
+
 
 def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, validate_po=False):
     po = extract_po(filename)
@@ -292,15 +359,18 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, validate_po=False
         filepath, po, po_dict, QUALER_DOCUMENT_TYPE
     )
     uploadResult = False
+    validation_result = None
     if successSOs:
         cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
         uploadResult = True
         # Run PO validation if enabled for this folder
         if validate_po:
-            _run_po_validation(filepath, new_filepath, successSOs, filename)
+            validation_result = _run_po_validation(
+                filepath, new_filepath, successSOs, filename
+            )
     if failedSOs:
         cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
-    return uploadResult, new_filepath
+    return uploadResult, new_filepath, successSOs, failedSOs, validation_result
 
 
 def _run_po_validation(
@@ -308,7 +378,7 @@ def _run_po_validation(
     current_filepath: str,
     service_order_ids: list,
     filename: str,
-) -> None:
+):
     """Validate a PO PDF against Qualer work items and upload annotated version.
 
     This runs after a successful PO upload. It extracts line items from the PDF,
@@ -316,6 +386,8 @@ def _run_po_validation(
     and uploads the annotated version back to Qualer.
 
     Failures here do NOT block the main upload flow.
+
+    Returns the last ValidationResult (or None if validation was skipped/failed).
     """
     # Read the PDF bytes (use the current filepath in case it was renamed)
     pdf_path = (
@@ -325,15 +397,16 @@ def _run_po_validation(
     )
     if not os.path.isfile(pdf_path):
         cp.yellow(f"PO validation skipped: file not found at {pdf_path}")
-        return
+        return None
 
     try:
         with open(pdf_path, "rb") as f:
             pdf_bytes = f.read()
     except Exception as e:
         cp.yellow(f"PO validation skipped: could not read {pdf_path}: {e}")
-        return
+        return None
 
+    last_result = None
     for service_order_id in service_order_ids:
         try:
             cp.blue(f"Running PO validation for SO# {service_order_id}...")
@@ -348,6 +421,7 @@ def _run_po_validation(
                 work_items=work_items,
                 document_name=filename,
             )
+            last_result = result
 
             status_msg = f"PO validation result: {result.status}"
             if result.status == "pass":
@@ -397,6 +471,8 @@ def _run_po_validation(
         except Exception as e:
             cp.yellow(f"PO validation failed for SO# {service_order_id}: {e}")
             logging.debug(traceback.format_exc())
+
+    return last_result
 
 
 if not LIVEAPI:

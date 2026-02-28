@@ -1,0 +1,21 @@
+max_runtime: null
+live_api: true
+debug: false
+delete_mode: false
+tesseract_cmd_path: "C:/Program Files/Tesseract-OCR/tesseract.exe"
+sharepoint_path: "~/Johnson Gage and Inspection, Inc/Johnson Gage and Inspection, Inc. - Documents/Sysop's OneDrive/Shared with Everyone/access/"
+log_file: "{sharepoint_path}Logs/pdfUploader.log"
+po_dict_file: "{sharepoint_path}Logs/DoNotMoveThisFile.json.gz"
+qualer_endpoint: "https://jgiquality.qualer.com/api"
+qualer_staging_endpoint: "https://jgiquality.staging.qualer.com/api"
+watched_folders:
+  - input_dir: "{sharepoint_path}!!! Front Office Scanned Docs - HOLDING"
+    output_dir: "{sharepoint_path}!!! Front Office Scanned Docs - HOLDING/Archives"
+    reject_dir: "{sharepoint_path}!!! Front Office Scanned Docs - HOLDING/No_Order_Found"
+    qualer_document_type: "General"
+    validate_po: true
+  - input_dir: "{sharepoint_path}!!! Scanned External Certs"
+    output_dir: "{sharepoint_path}!!! Scanned External Certs/Archives"
+    reject_dir: "{sharepoint_path}!!! Scanned External Certs/No_Order_Found"
+    qualer_document_type: "ordercertificate"
+    validate_po: false

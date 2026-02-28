@@ -1,72 +1,41 @@
 """
-config.py
+config.py -- Backward-compatible facade over config_manager.
 
-This file is used to configure the PDF uploader. It contains the following variables:
-- LIVEAPI:
-    - Set to True to use live API (Used for production), False to use staging API (Used for testing)
-- DEBUG:
-    - Set to False to upload files, True to skip uploads (Used for testing)
-- DELETE_MODE:
-  - Set to True to delete PDF files that were processed before the current date.
-  - Set to False to move them to their respective "Old PDFs" subdirectory.
-
-- QUALER_ENDPOINT: The Qualer API endpoint that will be used to upload the PDF files.
-- QUALER_STAGING_ENDPOINT: The Qualer staging API endpoint which is used for testing.
-
-- CONFIG: A list of dictionaries that contain the following keys:
-  - INPUT_DIR: The directory that the watcher will watch for new PDF files.
-  - OUTPUT_DIR: The directory that the processed PDF files will be archived if they
-    are successfully uploaded. *Leave this blank to delete the files instead.*
-  - REJECT_DIR: The directory that the processed PDF files will be moved to if they
-    are not successfully uploaded.
-  - QUALER_DOCUMENT_TYPE: The Qualer document type that will be used to upload the
-    PDF files from the INPUT_DIR. The following document types are available:
-    - general, assetsummary, assetlabel, assetdetail, assetcertificate, ordersummary,
-    - orderinvoice, orderestimate, dashboard, orderdetail, ordercertificate
+All existing imports like ``from app.config import LIVEAPI`` continue to work.
+Values are loaded from config.yaml (or defaults) via config_manager.
 """
 
-from os import path
+import os
 
-MAX_RUNTIME = None  # Set this to the maximum number of seconds the script should run before stopping. Set to None to run indefinitely.
+from app.config_manager import get_config
 
-# Switches:
-LIVEAPI = True  # Set to True to use live API, False to use staging API,
-DEBUG = False  # Set to False to upload files, True to skip uploads
-DELETE_MODE = False  # Set to True to delete old processed PDFs, False to move them to their "Old PDFs" subdirectory
 
-# Tesseract OCR path:
-tesseract_cmd_path = r"C:/Program Files/Tesseract-OCR/tesseract.exe"  # Path to the Tesseract OCR executable
-
-# Get the user's home directory
-user_folder = path.expanduser("~")  # e.g. 'C:\Users\JohnDoe'
-SHAREPOINT_PATH = (
-    user_folder
-    + "/Johnson Gage and Inspection, Inc/Johnson Gage and Inspection, Inc. - Documents/Sysop's OneDrive/Shared with Everyone/access/"
-)
-LOG_FILE = SHAREPOINT_PATH + r"Logs/pdfUploader.log"
-PO_DICT_FILE = SHAREPOINT_PATH + r"Logs/DoNotMoveThisFile.json.gz"
-
-# Dictionary of directories to watch:
-CONFIG = [
-    {
-        "INPUT_DIR": SHAREPOINT_PATH + r"!!! Front Office Scanned Docs - HOLDING",
-        "OUTPUT_DIR": SHAREPOINT_PATH
-        + r"!!! Front Office Scanned Docs - HOLDING/Archives",
-        "REJECT_DIR": SHAREPOINT_PATH
-        + r"!!! Front Office Scanned Docs - HOLDING/No_Order_Found",
-        "QUALER_DOCUMENT_TYPE": "General",
-        "VALIDATE_PO": True,
-    },
-    {
-        "INPUT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs",
-        "OUTPUT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs/Archives",
-        "REJECT_DIR": SHAREPOINT_PATH + r"!!! Scanned External Certs/No_Order_Found",
-        "QUALER_DOCUMENT_TYPE": "ordercertificate",
-        "VALIDATE_PO": False,
-    },
-]
-
-QUALER_ENDPOINT = "https://jgiquality.qualer.com/api"  # Do not change this
-QUALER_STAGING_ENDPOINT = (
-    "https://jgiquality.staging.qualer.com/api"  # Do not change this
-)
+def __getattr__(name):
+    """Module-level __getattr__ for lazy access to config values (PEP 562)."""
+    cfg = get_config()
+    _MAP = {
+        "MAX_RUNTIME": cfg.max_runtime,
+        "LIVEAPI": cfg.live_api,
+        "DEBUG": cfg.debug,
+        "DELETE_MODE": cfg.delete_mode,
+        "tesseract_cmd_path": cfg.tesseract_cmd_path,
+        "user_folder": os.path.expanduser("~"),
+        "SHAREPOINT_PATH": cfg.sharepoint_path,
+        "LOG_FILE": cfg.log_file,
+        "PO_DICT_FILE": cfg.po_dict_file,
+        "QUALER_ENDPOINT": cfg.qualer_endpoint,
+        "QUALER_STAGING_ENDPOINT": cfg.qualer_staging_endpoint,
+        "CONFIG": [
+            {
+                "INPUT_DIR": wf.input_dir,
+                "OUTPUT_DIR": wf.output_dir,
+                "REJECT_DIR": wf.reject_dir,
+                "QUALER_DOCUMENT_TYPE": wf.qualer_document_type,
+                "VALIDATE_PO": wf.validate_po,
+            }
+            for wf in cfg.watched_folders
+        ],
+    }
+    if name in _MAP:
+        return _MAP[name]
+    raise AttributeError(f"module 'app.config' has no attribute {name!r}")
