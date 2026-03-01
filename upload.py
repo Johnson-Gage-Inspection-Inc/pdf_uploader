@@ -288,7 +288,7 @@ def process_file(filepath: str, folder: WatchedFolder):
             workorders_result = reorient_pdf_for_workorders(filepath, folder.reject_dir)
         if not workorders_result:
             # Move unclaimed file back so it stays visible (or to reject)
-            final_path = move_file(filepath, folder.reject_dir) or filepath
+            final_path, _ = move_file(filepath, folder.reject_dir) or (filepath, False)
             ProcessingEvent(
                 filepath=final_path,
                 filename=filename,
@@ -347,7 +347,7 @@ def process_file(filepath: str, folder: WatchedFolder):
     # If the upload still failed, move the file to the reject directory
     if not uploadResult and os.path.isfile(filepath):
         cp.red("Failed to upload " + filepath + ". Moving to reject directory...")
-        final_path = move_file(filepath, folder.reject_dir) or filepath
+        final_path, _ = move_file(filepath, folder.reject_dir) or (filepath, False)
         ProcessingEvent(
             filepath=final_path,
             filename=filename,
@@ -383,9 +383,9 @@ def process_file(filepath: str, folder: WatchedFolder):
                 # Move the file to the archive folder.
                 # move_file handles FileExistsError internally
                 # by incrementing the destination filename.
-                moved = move_file(filepath, folder.output_dir)
+                path, moved = move_file(filepath, folder.output_dir)
                 if moved:
-                    final_path = moved
+                    final_path = path
             except Exception as e:
                 cp.red(e)
                 traceback.print_exc()
