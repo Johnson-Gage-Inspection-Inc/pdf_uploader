@@ -145,6 +145,11 @@ def upload_by_po(
     QUALER_DOCUMENT_TYPE: str,
     private: bool = False,
 ) -> tuple[list, list, str]:
+    """Upload a file to all service orders associated with a purchase order.
+
+    Returns:
+        tuple: (successful_SO_ids, failed_SO_ids, final_filepath)
+    """
     if po not in po_dict:
         cp.yellow(f"PO# {po} not found in Qualer.")
         return [], [], filepath
@@ -420,6 +425,11 @@ def process_file(filepath: str, folder: WatchedFolder):
 
 
 def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, validate_po=False):
+    """Extract PO number from filename, look up service orders, and upload.
+
+    Returns:
+        tuple: (upload_succeeded, final_filepath, successful_SO_ids, failed_SO_ids, validation_result)
+    """
     po = extract_po(filename)
     po_dict = update_PO_numbers()
     cp.white("PO found in file name: " + po)
