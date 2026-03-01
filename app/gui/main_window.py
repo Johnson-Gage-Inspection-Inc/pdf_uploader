@@ -117,8 +117,23 @@ class MainWindow(QMainWindow):
         cfg = get_config()
         folder_count = len(cfg.watched_folders)
         files_today = self.dashboard.get_event_count()
+
+        # Show queue status if the job queue is active
+        queue_info = ""
+        try:
+            from app.job_queue import get_queue
+
+            queue = get_queue()
+            if queue is not None:
+                queued = queue.total_queued
+                if queued > 0:
+                    queue_info = f" | {queued} in queue"
+        except Exception:
+            pass
+
         text = (
-            f"Watching {folder_count} directories | {files_today} files processed today"
+            f"Watching {folder_count} directories | "
+            f"{files_today} files processed today{queue_info}"
         )
         self.status_label.setText(text)
         self.tray.update_status(folder_count, files_today)

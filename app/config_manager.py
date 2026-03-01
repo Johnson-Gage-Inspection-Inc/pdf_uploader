@@ -56,6 +56,7 @@ class AppConfig:
     sharepoint_path: str = ""
     log_file: str = ""
     po_dict_file: str = ""
+    max_workers: int = 3
     qualer_endpoint: str = "https://jgiquality.qualer.com/api"
     watched_folders: list[WatchedFolder] = field(default_factory=list)
 
@@ -172,6 +173,7 @@ def load_config() -> AppConfig:
 
         _config = AppConfig(
             max_runtime=raw.get("max_runtime"),
+            max_workers=max(1, int(raw.get("max_workers", 3))),
             debug=raw.get("debug", False),
             delete_mode=raw.get("delete_mode", False),
             tesseract_cmd_path=raw.get(
@@ -237,6 +239,7 @@ def save_config(config: AppConfig, path: Optional[Path] = None) -> None:
 
     data = {
         "max_runtime": config.max_runtime,
+        "max_workers": config.max_workers,
         "debug": config.debug,
         "delete_mode": config.delete_mode,
         "tesseract_cmd_path": config.tesseract_cmd_path,

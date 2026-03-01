@@ -16,6 +16,7 @@ def __getattr__(name):
     cfg = get_config()
     _MAP = {
         "MAX_RUNTIME": cfg.max_runtime,
+        "MAX_WORKERS": cfg.max_workers,
         "DEBUG": cfg.debug,
         "DELETE_MODE": cfg.delete_mode,
         "tesseract_cmd_path": cfg.tesseract_cmd_path,

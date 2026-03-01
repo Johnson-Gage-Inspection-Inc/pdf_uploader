@@ -1,4 +1,5 @@
 max_runtime: null
+max_workers: 3
 debug: false
 delete_mode: false
 tesseract_cmd_path: "C:/Program Files/Tesseract-OCR/tesseract.exe"
