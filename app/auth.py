@@ -72,9 +72,7 @@ def ensure_authenticated() -> None:
         cp.green("Qualer login successful.")
     except AuthenticationError:
         if cfg.qualer_api_key:
-            cp.yellow(
-                "Login failed but found persisted token. Using existing token."
-            )
+            cp.yellow("Login failed but found persisted token. Using existing token.")
             os.environ["QUALER_API_KEY"] = cfg.qualer_api_key
         else:
             raise
