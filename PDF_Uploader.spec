@@ -1,15 +1,23 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 
+import importlib
+import os
+
+def _pkg_data(package_name, filename):
+    """Locate a data file inside an installed package."""
+    pkg = importlib.import_module(package_name)
+    pkg_dir = os.path.dirname(pkg.__file__)
+    return (os.path.join(pkg_dir, filename), package_name)
+
 a = Analysis(
     ['watcher.py'],
     pathex=[],
     binaries=[],
     datas=[
-        ('.venv/Lib/site-packages/pypdfium2_raw/pdfium.dll', 'pypdfium2_raw'),
-        ('.venv/Lib/site-packages/pypdfium2_raw/version.json', 'pypdfium2_raw'),
-        ('.venv/Lib/site-packages/pypdfium2/version.json', 'pypdfium2'),
-        ('.env', '.'),
+        _pkg_data('pypdfium2_raw', 'pdfium.dll'),
+        _pkg_data('pypdfium2_raw', 'version.json'),
+        _pkg_data('pypdfium2', 'version.json'),
         ('app/version.py', 'app'),
         ('app/po_validator/stamps/*.png', 'app/po_validator/stamps'),
         ('config.yaml', '.'),

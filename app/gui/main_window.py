@@ -131,7 +131,7 @@ class MainWindow(QMainWindow):
 
     def _show_about(self):
         try:
-            from app.version import version
+            from app.version import __version__ as version
         except ImportError:
             version = "dev"
         QMessageBox.about(
