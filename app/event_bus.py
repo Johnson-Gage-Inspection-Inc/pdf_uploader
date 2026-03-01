@@ -31,6 +31,14 @@ class ProcessingEvent:
     folder_label: str = ""
     pending: bool = False
 
+    def emit(self):
+        """Emit a ProcessingEvent to the GUI event bus (no-op in CLI mode)."""
+        try:
+            if bus := get_bus():
+                bus.file_processing_finished.emit(self)
+        except Exception:
+            pass  # Never let event emission break the upload flow
+
 
 class EventBus(QObject):
     """Singleton QObject that emits signals from watcher threads."""

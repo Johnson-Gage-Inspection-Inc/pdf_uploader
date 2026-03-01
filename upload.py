@@ -178,18 +178,6 @@ def upload_by_po(
     return successSOs, failedSOs, filepath
 
 
-def _emit_event(event):
-    """Emit a ProcessingEvent to the GUI event bus (no-op in CLI mode)."""
-    try:
-        from app.event_bus import get_bus
-
-        bus = get_bus()
-        if bus:
-            bus.file_processing_finished.emit(event)
-    except Exception:
-        pass  # Never let event emission break the upload flow
-
-
 def _cleanup_processing_dir(processing_dir: str) -> None:
     """Remove the _processing/ subdirectory if it's empty."""
     try:
@@ -301,16 +289,14 @@ def process_file(filepath: str, folder: WatchedFolder):
         if not workorders_result:
             # Move unclaimed file back so it stays visible (or to reject)
             final_path = move_file(filepath, folder.reject_dir) or filepath
-            _emit_event(
-                ProcessingEvent(
-                    filepath=final_path,
-                    filename=filename,
-                    timestamp=datetime.now(),
-                    success=False,
-                    error_message="No work orders found",
-                    folder_label=folder.input_dir,
-                )
-            )
+            ProcessingEvent(
+                filepath=final_path,
+                filename=filename,
+                timestamp=datetime.now(),
+                success=False,
+                error_message="No work orders found",
+                folder_label=folder.input_dir,
+            ).emit()
             _cleanup_processing_dir(processing_dir)
             return False
 
@@ -362,19 +348,17 @@ def process_file(filepath: str, folder: WatchedFolder):
     if not uploadResult and os.path.isfile(filepath):
         cp.red("Failed to upload " + filepath + ". Moving to reject directory...")
         final_path = move_file(filepath, folder.reject_dir) or filepath
-        _emit_event(
-            ProcessingEvent(
-                filepath=final_path,
-                filename=filename,
-                timestamp=datetime.now(),
-                success=False,
-                work_orders=list(work_orders),
-                service_order_ids=list(service_order_ids),
-                error_message="Upload failed",
-                validation_result=validation_result,
-                folder_label=folder.input_dir,
-            )
-        )
+        ProcessingEvent(
+            filepath=final_path,
+            filename=filename,
+            timestamp=datetime.now(),
+            success=False,
+            work_orders=list(work_orders),
+            service_order_ids=list(service_order_ids),
+            error_message="Upload failed",
+            validation_result=validation_result,
+            folder_label=folder.input_dir,
+        ).emit()
         _cleanup_processing_dir(processing_dir)
         return False
 
@@ -411,18 +395,16 @@ def process_file(filepath: str, folder: WatchedFolder):
         cp.yellow(f"Failed to remove file: {filepath} | {e}")
         logging.debug(traceback.format_exc())
 
-    _emit_event(
-        ProcessingEvent(
-            filepath=final_path,
-            filename=filename,
-            timestamp=datetime.now(),
-            success=True,
-            work_orders=list(work_orders),
-            service_order_ids=list(service_order_ids),
-            validation_result=validation_result,
-            folder_label=folder.input_dir,
-        )
-    )
+    ProcessingEvent(
+        filepath=final_path,
+        filename=filename,
+        timestamp=datetime.now(),
+        success=True,
+        work_orders=list(work_orders),
+        service_order_ids=list(service_order_ids),
+        validation_result=validation_result,
+        folder_label=folder.input_dir,
+    ).emit()
     _cleanup_processing_dir(processing_dir)
 
 
