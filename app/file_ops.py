@@ -22,7 +22,12 @@ def increment_filename(old_filename) -> str:
 
 
 def move_file(filepath, output_dir) -> tuple[str, bool]:
-    """Move a file to the given directory, retrying on transient errors."""
+    """Move a file to the given directory, retrying on transient errors.
+
+    Returns ``(new_path, True)`` on success.  On failure the *original*
+    ``filepath`` is returned so callers always have a valid path:
+    ``(filepath, False)``.
+    """
     file_name = os.path.basename(filepath)
     new_filepath = os.path.join(output_dir, file_name)
     attempt = 0
@@ -47,17 +52,17 @@ def move_file(filepath, output_dir) -> tuple[str, bool]:
             # This probably means the file was already moved by another process
             # (Perhaps another instance of this script is running?)
             cp.red(e)
-            return "", False  # File not found, no need to retry
+            return filepath, False  # File not found, no need to retry
         except Exception as e:
             cp.red("Unexpected exception for " + filepath)
             cp.red(f"Failed to move {filepath} to {new_filepath}.")
             cp.red(e)
             print_exc()
-            return "", False
+            return filepath, False
 
     # If all rename attempts failed, handle the error
     cp.red(f"Failed to move file to the reject directory: {filepath}")
-    return "", False
+    return filepath, False
 
 
 def try_rename(src_path, dst_path, retries=5, delay=2) -> bool:

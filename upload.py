@@ -384,9 +384,7 @@ def process_file(filepath: str, folder: WatchedFolder):
                 # Move the file to the archive folder.
                 # move_file handles FileExistsError internally
                 # by incrementing the destination filename.
-                path, moved = move_file(filepath, folder.output_dir)
-                if moved:
-                    final_path = path
+                final_path, _ = move_file(filepath, folder.output_dir)
             except Exception as e:
                 cp.red(e)
                 traceback.print_exc()

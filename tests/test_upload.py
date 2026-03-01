@@ -384,7 +384,7 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             ), patch(
                 "upload.reorient_pdf_for_workorders", return_value=({}, False)
             ), patch(
-                "upload.move_file", return_value=("", False)
+                "upload.move_file", return_value=(pdf_path, False)
             ):
                 process_file(pdf_path, folder)
 
@@ -463,7 +463,7 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             ), patch("upload.pdf.workorders", return_value=False), patch(
                 "upload.reorient_pdf_for_workorders", return_value=({}, False)
             ), patch(
-                "upload.move_file", return_value=("", False)
+                "upload.move_file", return_value=(pdf_path, False)
             ), patch(
                 "time.sleep"
             ):

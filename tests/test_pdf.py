@@ -217,7 +217,7 @@ class TestMoveFile(unittest.TestCase):
         from app.file_ops import move_file
 
         path, success = move_file("/src/file.pdf", "/dst")
-        self.assertEqual(path, "")
+        self.assertEqual(path, "/src/file.pdf")
         self.assertFalse(success)
 
     @patch("app.file_ops.increment_filename", return_value="/dst/file (1).pdf")
