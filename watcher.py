@@ -277,10 +277,16 @@ def launch_gui():
 
     # Start watcher threads (daemon=True so they die when Qt event loop exits)
     def start_watchers():
-        from app.auth import ensure_authenticated
+        from app.auth import ensure_authenticated, AuthenticationError
 
-        ensure_authenticated()
-        check_connectivity()
+        try:
+            ensure_authenticated()
+            check_connectivity()
+        except AuthenticationError as exc:
+            # Surface authentication failures via the GUI event bus and abort startup
+            bus.log_message.emit("red", f"Authentication failed: {exc}")
+            request_shutdown()
+            return
         for folder in get_config().watched_folders:
             move_old_pdfs(folder.output_dir)
             move_old_pdfs(folder.reject_dir)
