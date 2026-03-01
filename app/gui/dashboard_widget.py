@@ -205,6 +205,7 @@ class DashboardWidget(QWidget):
                 wo_label.setOpenExternalLinks(True)
                 self.table.setCellWidget(row, 4, wo_label)
             else:
+                self.table.removeCellWidget(row, 4)
                 self.table.setItem(row, 4, QTableWidgetItem(""))
 
             # PO#
@@ -213,11 +214,10 @@ class DashboardWidget(QWidget):
                 po_num = event.validation_result.po_number
             self.table.setItem(row, 5, QTableWidgetItem(po_num))
 
-            # View button for validation results
-            if event.validation_result:
-                btn = QPushButton("View")
-                btn.clicked.connect(lambda checked, e=event: self._show_detail(e))
-                self.table.setCellWidget(row, 6, btn)
+            # View button — always available (dialog adapts to PO vs non-PO)
+            btn = QPushButton("View")
+            btn.clicked.connect(lambda checked, e=event: self._show_detail(e))
+            self.table.setCellWidget(row, 6, btn)
 
     def _show_detail(self, event):
         from app.gui.detail_dialog import DetailDialog
