@@ -1,3 +1,5 @@
+import os
+import sys
 import unittest
 
 
@@ -51,222 +53,238 @@ class TestConfig(unittest.TestCase):
             self.assertIsInstance(wf.validate_po, bool)
 
 
-class TestEncryptDecrypt(unittest.TestCase):
-    """Tests for _encrypt_value / _decrypt_value in config_manager."""
+class TestDevSecrets(unittest.TestCase):
+    """Tests for secret handling in development (non-frozen) mode."""
 
     def setUp(self):
-        from cryptography.fernet import Fernet
-        import os
-
-        self._original_key = os.environ.get("APP_SECRET_KEY")
-        self._test_key = Fernet.generate_key().decode()
-
-    def tearDown(self):
-        import os
-
-        if self._original_key is None:
-            os.environ.pop("APP_SECRET_KEY", None)
-        else:
-            os.environ["APP_SECRET_KEY"] = self._original_key
-
-    def _set_key(self, key):
-        import os
-
-        if key is None:
-            os.environ.pop("APP_SECRET_KEY", None)
-        else:
-            os.environ["APP_SECRET_KEY"] = key
-
-    def test_encrypt_produces_enc_prefix_when_key_set(self):
-        from app.config_manager import _encrypt_value
-
-        self._set_key(self._test_key)
-        result = _encrypt_value("mysecret")
-        self.assertTrue(result.startswith("ENC:"), result)
-
-    def test_encrypt_decrypt_roundtrip(self):
-        from app.config_manager import _encrypt_value, _decrypt_value
-
-        self._set_key(self._test_key)
-        encrypted = _encrypt_value("mysecret")
-        self.assertTrue(encrypted.startswith("ENC:"))
-        decrypted = _decrypt_value(encrypted)
-        self.assertEqual(decrypted, "mysecret")
-
-    def test_encrypt_no_key_returns_plaintext(self):
-        from app.config_manager import _encrypt_value
-
-        self._set_key(None)
-        result = _encrypt_value("mysecret")
-        self.assertEqual(result, "mysecret")
-
-    def test_decrypt_no_prefix_returns_as_is(self):
-        from app.config_manager import _decrypt_value
-
-        self._set_key(self._test_key)
-        result = _decrypt_value("plaintext_value")
-        self.assertEqual(result, "plaintext_value")
-
-    def test_encrypt_already_encrypted_not_double_encrypted(self):
-        from app.config_manager import _encrypt_value
-
-        self._set_key(self._test_key)
-        encrypted = _encrypt_value("mysecret")
-        double = _encrypt_value(encrypted)
-        # Should return the same value — no double-encryption
-        self.assertEqual(double, encrypted)
-
-    def test_encrypt_bad_key_logs_warning_and_returns_plaintext(self):
-        from app.config_manager import _encrypt_value
-        import logging
-
-        self._set_key("not-a-valid-fernet-key")
-        with self.assertLogs("root", level=logging.WARNING) as cm:
-            result = _encrypt_value("mysecret")
-        self.assertEqual(result, "mysecret")
-        self.assertTrue(
-            any("APP_SECRET_KEY" in msg for msg in cm.output),
-            cm.output,
-        )
-
-    def test_decrypt_no_key_logs_warning_and_returns_ciphertext(self):
-        from app.config_manager import _decrypt_value
-        import logging
-
-        self._set_key(None)
-        with self.assertLogs("root", level=logging.WARNING) as cm:
-            result = _decrypt_value("ENC:sometoken")
-        self.assertEqual(result, "ENC:sometoken")
-        self.assertTrue(
-            any("APP_SECRET_KEY" in msg for msg in cm.output),
-            cm.output,
-        )
-
-    def test_decrypt_bad_token_logs_warning_and_returns_ciphertext(self):
-        from app.config_manager import _decrypt_value
-        import logging
-
-        self._set_key(self._test_key)
-        with self.assertLogs("root", level=logging.WARNING) as cm:
-            result = _decrypt_value("ENC:notavalidtoken")
-        self.assertEqual(result, "ENC:notavalidtoken")
-        self.assertTrue(any("decrypt" in msg.lower() for msg in cm.output), cm.output)
-
-
-class TestSaveEnv(unittest.TestCase):
-    """Tests for save_env preserving existing .env content."""
-
-    def setUp(self):
-        import tempfile, os
-        from cryptography.fernet import Fernet
+        import tempfile
 
         self._tmpdir = tempfile.mkdtemp()
-        self._original_key = os.environ.get("APP_SECRET_KEY")
-        self._test_key = Fernet.generate_key().decode()
-        os.environ["APP_SECRET_KEY"] = self._test_key
+        self._original = {k: os.environ.get(k) for k in ("QUALER_API_KEY", "GEMINI_API_KEY")}
+        for k in ("QUALER_API_KEY", "GEMINI_API_KEY"):
+            os.environ.pop(k, None)
 
     def tearDown(self):
-        import shutil, os
+        import shutil
 
         shutil.rmtree(self._tmpdir, ignore_errors=True)
-        if self._original_key is None:
-            os.environ.pop("APP_SECRET_KEY", None)
-        else:
-            os.environ["APP_SECRET_KEY"] = self._original_key
+        for k, v in self._original.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
 
-    def _run_save_env(self, env_path, qualer_key, gemini_key):
-        """Call save_env with a patched env path."""
-        from unittest.mock import patch
+    def test_save_dev_env_writes_plain_text(self):
+        """_save_dev_env writes plain-text values — no encryption."""
         from pathlib import Path
-        import app.config_manager as cm
-
-        with patch.object(
-            Path,
-            "__truediv__",
-            side_effect=lambda self, other: (
-                Path(self._tmpdir) / other
-                if str(self) in (str(Path(__file__).parent.parent), str(Path(__file__)))
-                else Path.__truediv__(self, other)
-            ),
-        ):
-            # Directly call with the temp path by monkeypatching the module
-            real_save = cm.save_env
-
-            def patched_save(q, g):
-                # Temporarily redirect the path resolution
-                import sys
-                original_frozen = getattr(sys, "frozen", None)
-                # Force development path
-                if hasattr(sys, "frozen"):
-                    del sys.frozen
-                try:
-                    real_save(q, g)
-                finally:
-                    if original_frozen is not None:
-                        sys.frozen = original_frozen
-
-            patched_save(qualer_key, gemini_key)
-
-    def test_save_env_preserves_existing_keys(self):
-        """save_env should preserve APP_SECRET_KEY and other entries."""
-        from pathlib import Path
-        import app.config_manager as cm
-        from unittest.mock import patch
+        from app.config_manager import _save_dev_env
 
         env_file = Path(self._tmpdir) / ".env"
-        env_file.write_text(
-            f"APP_SECRET_KEY={self._test_key}\nOTHER_KEY=other_value\n"
-        )
-
-        # Patch the path resolution inside save_env
-        with patch("app.config_manager.Path") as MockPath:
-            instance = MockPath.return_value
-            instance.__truediv__ = lambda s, o: env_file
-            MockPath.side_effect = lambda *a, **kw: (
-                env_file.parent if "__file__" in str(a) else Path(*a, **kw)
-            )
-
-            # Directly write using the real logic but with our temp file
-            # We'll test via direct file manipulation instead
-            pass
-
-        # Use a simpler approach: write directly and verify logic
-        from app.config_manager import _encrypt_value, _decrypt_value
-
-        # Simulate what save_env does (upsert logic)
-        updates = {
-            "QUALER_API_KEY": _encrypt_value("test_qualer"),
-            "GEMINI_API_KEY": _encrypt_value("test_gemini"),
-        }
-        existing = env_file.read_text().splitlines(keepends=True)
-        new_lines = []
-        seen = set()
-        for line in existing:
-            stripped = line.rstrip("\n")
-            if "=" in stripped and not stripped.lstrip().startswith("#"):
-                key = stripped.split("=", 1)[0].strip()
-                if key in updates:
-                    new_lines.append(f"{key}={updates[key]}\n")
-                    seen.add(key)
-                    continue
-            new_lines.append(line if line.endswith("\n") else line + "\n")
-        for k, v in updates.items():
-            if k not in seen:
-                new_lines.append(f"{k}={v}\n")
-        env_file.write_text("".join(new_lines))
+        _save_dev_env("qualer_key_value", "gemini_key_value", _path=env_file)
 
         content = env_file.read_text()
-        self.assertIn(f"APP_SECRET_KEY={self._test_key}", content)
-        self.assertIn("OTHER_KEY=other_value", content)
-        self.assertIn("QUALER_API_KEY=ENC:", content)
-        self.assertIn("GEMINI_API_KEY=ENC:", content)
+        self.assertIn("QUALER_API_KEY=qualer_key_value", content)
+        self.assertIn("GEMINI_API_KEY=gemini_key_value", content)
 
-        # Verify decryption works
-        for line in content.splitlines():
-            if line.startswith("QUALER_API_KEY="):
-                self.assertEqual(_decrypt_value(line.split("=", 1)[1]), "test_qualer")
-            if line.startswith("GEMINI_API_KEY="):
-                self.assertEqual(_decrypt_value(line.split("=", 1)[1]), "test_gemini")
+    def test_save_dev_env_preserves_other_lines(self):
+        """_save_dev_env preserves unrelated entries in .env."""
+        from pathlib import Path
+        from app.config_manager import _save_dev_env
+
+        env_file = Path(self._tmpdir) / ".env"
+        env_file.write_text("OTHER_VAR=keep_me\nQUALER_API_KEY=old\n")
+
+        _save_dev_env("new_qualer", "", _path=env_file)
+
+        content = env_file.read_text()
+        self.assertIn("OTHER_VAR=keep_me", content)
+        self.assertIn("QUALER_API_KEY=new_qualer", content)
+        self.assertNotIn("QUALER_API_KEY=old", content)
+
+    def test_save_dev_env_upserts_missing_key(self):
+        """_save_dev_env appends a key that doesn't yet exist in .env."""
+        from pathlib import Path
+        from app.config_manager import _save_dev_env
+
+        env_file = Path(self._tmpdir) / ".env"
+        env_file.write_text("OTHER_VAR=keep_me\n")
+
+        _save_dev_env("qualer123", "", _path=env_file)
+
+        content = env_file.read_text()
+        self.assertIn("QUALER_API_KEY=qualer123", content)
+        self.assertIn("OTHER_VAR=keep_me", content)
+
+    def test_load_secrets_dev_reads_env(self):
+        """_load_secrets reads plain-text values from the environment."""
+        os.environ["QUALER_API_KEY"] = "test_qualer"
+        os.environ["GEMINI_API_KEY"] = "test_gemini"
+
+        # Reload so load_dotenv picks up the current env.
+        import app.config_manager as cm
+
+        secrets = cm._load_secrets()
+        self.assertEqual(secrets.get("QUALER_API_KEY"), "test_qualer")
+        self.assertEqual(secrets.get("GEMINI_API_KEY"), "test_gemini")
+
+
+class TestFrozenSecrets(unittest.TestCase):
+    """Tests for secret handling in frozen (bundled .exe) mode."""
+
+    def setUp(self):
+        import tempfile
+        from cryptography.fernet import Fernet
+        from unittest.mock import patch
+
+        self._tmpdir = tempfile.mkdtemp()
+        self._test_key = Fernet.generate_key().decode()
+        self._fernet = Fernet(self._test_key.encode())
+
+        # Patch keyring so tests don't touch the real OS keychain.
+        self._keyring_patcher = patch("keyring.get_password", return_value=self._test_key)
+        self._keyring_patcher.start()
+        self._keyring_set_patcher = patch("keyring.set_password")
+        self._keyring_set_patcher.start()
+
+    def tearDown(self):
+        import shutil
+
+        self._keyring_patcher.stop()
+        self._keyring_set_patcher.stop()
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    def test_save_frozen_secrets_encrypts_values(self):
+        """_save_frozen_secrets writes encrypted JSON, not plain text."""
+        import json
+        from pathlib import Path
+        from app.config_manager import _save_frozen_secrets
+
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        _save_frozen_secrets("qualer_val", "gemini_val", _path=secrets_file)
+
+        raw = json.loads(secrets_file.read_text())
+        # Values must not be plain text.
+        self.assertNotEqual(raw.get("QUALER_API_KEY"), "qualer_val")
+        self.assertNotEqual(raw.get("GEMINI_API_KEY"), "gemini_val")
+        # Values must be Fernet-decryptable.
+        self.assertEqual(
+            self._fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "qualer_val"
+        )
+        self.assertEqual(
+            self._fernet.decrypt(raw["GEMINI_API_KEY"].encode()).decode(), "gemini_val"
+        )
+
+    def test_load_frozen_secrets_roundtrip(self):
+        """Values saved by _save_frozen_secrets are recovered by _load_frozen_secrets."""
+        from pathlib import Path
+        from app.config_manager import _save_frozen_secrets, _load_frozen_secrets
+
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        _save_frozen_secrets("qualer_val", "gemini_val", _path=secrets_file)
+
+        loaded = _load_frozen_secrets(_path=secrets_file)
+        self.assertEqual(loaded.get("QUALER_API_KEY"), "qualer_val")
+        self.assertEqual(loaded.get("GEMINI_API_KEY"), "gemini_val")
+
+    def test_save_frozen_secrets_preserves_unrelated_keys(self):
+        """_save_frozen_secrets keeps keys it isn't updating."""
+        import json
+        from pathlib import Path
+        from app.config_manager import _save_frozen_secrets
+
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        # Seed the file with an existing key.
+        existing = {"OTHER_KEY": self._fernet.encrypt(b"other_val").decode()}
+        secrets_file.write_text(json.dumps(existing))
+
+        _save_frozen_secrets("new_qualer", "", _path=secrets_file)
+
+        raw = json.loads(secrets_file.read_text())
+        self.assertIn("OTHER_KEY", raw)
+        self.assertEqual(
+            self._fernet.decrypt(raw["OTHER_KEY"].encode()).decode(), "other_val"
+        )
+        self.assertEqual(
+            self._fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "new_qualer"
+        )
+
+    def test_load_frozen_secrets_missing_file_returns_empty(self):
+        """_load_frozen_secrets returns an empty dict when secrets.enc is absent."""
+        from pathlib import Path
+        from app.config_manager import _load_frozen_secrets
+
+        missing = Path(self._tmpdir) / "secrets.enc"
+        self.assertEqual(_load_frozen_secrets(_path=missing), {})
+
+    def test_load_frozen_secrets_corrupt_file_logs_warning(self):
+        """_load_frozen_secrets warns and returns empty dict on corrupt data."""
+        import logging
+        from pathlib import Path
+        from app.config_manager import _load_frozen_secrets
+
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        secrets_file.write_text("not valid json or fernet data")
+
+        with self.assertLogs(level=logging.WARNING):
+            result = _load_frozen_secrets(_path=secrets_file)
+        self.assertEqual(result, {})
+
+
+class TestConfigDialogObfuscation(unittest.TestCase):
+    """UI-level checks that API key fields are never pre-populated."""
+
+    @classmethod
+    def setUpClass(cls):
+        from PyQt6.QtWidgets import QApplication
+
+        if QApplication.instance() is None:
+            cls._app = QApplication([])
+
+    def _make_dialog(self, qualer="", gemini=""):
+        from unittest.mock import patch
+        from app.config_manager import AppConfig
+        from app.gui.config_dialog import ConfigDialog
+
+        cfg = AppConfig(qualer_api_key=qualer, gemini_api_key=gemini)
+        with patch("app.gui.config_dialog.get_config", return_value=cfg):
+            dlg = ConfigDialog()
+        return dlg
+
+    def test_key_fields_are_always_blank(self):
+        """QLineEdit fields must be empty regardless of whether a key is stored."""
+        dlg = self._make_dialog(qualer="secret_key", gemini="another_secret")
+        self.assertEqual(dlg.qualer_key.text(), "")
+        self.assertEqual(dlg.gemini_key.text(), "")
+
+    def test_placeholder_indicates_saved_key(self):
+        """Placeholder text says '(saved — type to replace)' when a key exists."""
+        dlg = self._make_dialog(qualer="secret_key", gemini="another_secret")
+        self.assertIn("saved", dlg.qualer_key.placeholderText())
+        self.assertIn("saved", dlg.gemini_key.placeholderText())
+
+    def test_placeholder_indicates_no_key(self):
+        """Placeholder text says '(not set)' when no key is stored."""
+        dlg = self._make_dialog(qualer="", gemini="")
+        self.assertIn("not set", dlg.qualer_key.placeholderText())
+        self.assertIn("not set", dlg.gemini_key.placeholderText())
+
+    def test_echo_mode_is_password(self):
+        """Fields must stay in Password echo mode (no Show button to bypass)."""
+        from PyQt6.QtWidgets import QLineEdit
+
+        dlg = self._make_dialog(qualer="key", gemini="key")
+        self.assertEqual(dlg.qualer_key.echoMode(), QLineEdit.EchoMode.Password)
+        self.assertEqual(dlg.gemini_key.echoMode(), QLineEdit.EchoMode.Password)
+
+    def test_no_show_buttons_in_dialog(self):
+        """There must be no 'Show' button in the dialog."""
+        from PyQt6.QtWidgets import QPushButton
+
+        dlg = self._make_dialog(qualer="key", gemini="key")
+        show_buttons = [
+            w for w in dlg.findChildren(QPushButton) if w.text() == "Show"
+        ]
+        self.assertEqual(show_buttons, [])
 
 
 if __name__ == "__main__":

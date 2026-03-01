@@ -1,5 +1,6 @@
 altgraph==0.17.4
 cryptography==46.0.5
+keyring==25.7.0
 certifi==2024.12.14
 charset-normalizer==3.4.1
 colorama==0.4.6
