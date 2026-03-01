@@ -204,11 +204,11 @@ class TestMoveFile(unittest.TestCase):
     def test_move_file_success(self, mock_rename, mock_cp):
         from app.file_ops import move_file
 
-        path, success = move_file("/src/file.pdf", "/dst")
+        path = move_file("/src/file.pdf", "/dst")
         expected_dst = os.path.join("/dst", "file.pdf")
         mock_rename.assert_called_once_with("/src/file.pdf", expected_dst)
         self.assertEqual(path, expected_dst)
-        self.assertTrue(success)
+        assert path != "/src/file.pdf"
 
     @patch("app.file_ops.sleep")
     @patch("app.file_ops.cp")
@@ -216,9 +216,9 @@ class TestMoveFile(unittest.TestCase):
     def test_move_file_not_found(self, mock_rename, mock_cp, mock_sleep):
         from app.file_ops import move_file
 
-        path, success = move_file("/src/file.pdf", "/dst")
+        path = move_file("/src/file.pdf", "/dst")
         self.assertEqual(path, "/src/file.pdf")
-        self.assertFalse(success)
+        assert path == "/src/file.pdf"
 
     @patch("app.file_ops.increment_filename", return_value="/dst/file (1).pdf")
     @patch("app.file_ops.sleep")
@@ -231,9 +231,9 @@ class TestMoveFile(unittest.TestCase):
         from app.file_ops import move_file
 
         mock_rename.side_effect = [FileExistsError, None]
-        path, success = move_file("/src/file.pdf", "/dst")
+        path = move_file("/src/file.pdf", "/dst")
         self.assertEqual(path, "/dst/file (1).pdf")
-        self.assertTrue(success)
+        assert path != "/src/file.pdf"
 
 
 class TestExtract(unittest.TestCase):
