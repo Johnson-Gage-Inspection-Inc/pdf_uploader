@@ -4,6 +4,7 @@ myenv/
 dist/
 build/
 .env
+secrets.enc
 temp.*
 .mypy_cache/
 .vscode/settings.json
