@@ -439,7 +439,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
     try:
         if filepath and (OUTPUT_DIR is None or OUTPUT_DIR == ""):
             os.remove(filepath)
-            final_path = ""  # file deleted
+            # final_path is already set to filepath above; keep it for event context
         elif filepath:
             # Archive only version:
             try:
