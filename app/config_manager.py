@@ -308,25 +308,12 @@ def _load_secrets() -> dict[str, str]:
     return _load_frozen_secrets()
 
 
-def _save_dev_env(
+def _save_secrets(
     qualer_api_key: str,
     gemini_api_key: str,
     _path: Optional[Path] = None,
 ) -> None:
-    """Persist API keys using encrypted storage even in development.
-
-    Uses the same encrypted ``secrets.enc`` mechanism as frozen builds.
-    The optional *_path* parameter is for testing.
-    """
-    _save_frozen_secrets(qualer_api_key, gemini_api_key, _path=_path)
-
-
-def _save_frozen_secrets(
-    qualer_api_key: str,
-    gemini_api_key: str,
-    _path: Optional[Path] = None,
-) -> None:
-    """Encrypt and persist API keys into ``secrets.enc``.  Frozen mode only.
+    """Encrypt and persist API keys into ``secrets.enc``.
 
     Existing keys not being updated are preserved.
     The optional *_path* parameter is for testing.
@@ -358,12 +345,5 @@ def _save_frozen_secrets(
 
 
 def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
-    """Persist API keys using the strategy appropriate for the current run mode.
-
-    * Development: plain text upsert into ``.env``.
-    * Frozen/bundled: encrypted upsert into ``secrets.enc`` next to the .exe.
-    """
-    if getattr(sys, "frozen", False):
-        _save_frozen_secrets(qualer_api_key, gemini_api_key)
-    else:
-        _save_dev_env(qualer_api_key, gemini_api_key)
+    """Persist API keys into encrypted ``secrets.enc``."""
+    _save_secrets(qualer_api_key, gemini_api_key)

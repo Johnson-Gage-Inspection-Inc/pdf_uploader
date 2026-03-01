@@ -1,5 +1,4 @@
 import os
-import sys
 import unittest
 
 
@@ -54,12 +53,9 @@ class TestConfig(unittest.TestCase):
 
 
 class TestDevSecrets(unittest.TestCase):
-    """Tests for secret handling in development (non-frozen) mode."""
+    """Tests for secret loading in development (non-frozen) mode."""
 
     def setUp(self):
-        import tempfile
-
-        self._tmpdir = tempfile.mkdtemp()
         self._original = {
             k: os.environ.get(k) for k in ("QUALER_API_KEY", "GEMINI_API_KEY")
         }
@@ -67,91 +63,11 @@ class TestDevSecrets(unittest.TestCase):
             os.environ.pop(k, None)
 
     def tearDown(self):
-        import shutil
-
-        shutil.rmtree(self._tmpdir, ignore_errors=True)
         for k, v in self._original.items():
             if v is None:
                 os.environ.pop(k, None)
             else:
                 os.environ[k] = v
-
-    def test_save_dev_env_writes_encrypted(self):
-        """_save_dev_env writes encrypted values via _save_frozen_secrets."""
-        import json
-        from pathlib import Path
-        from unittest.mock import patch
-        from cryptography.fernet import Fernet
-        from app.config_manager import _save_dev_env
-
-        test_key = Fernet.generate_key().decode()
-        fernet = Fernet(test_key.encode())
-
-        secrets_file = Path(self._tmpdir) / "secrets.enc"
-        with patch("keyring.get_password", return_value=test_key), patch(
-            "keyring.set_password"
-        ):
-            _save_dev_env("qualer_key_value", "gemini_key_value", _path=secrets_file)
-
-        raw = json.loads(secrets_file.read_text())
-        self.assertEqual(
-            fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "qualer_key_value"
-        )
-        self.assertEqual(
-            fernet.decrypt(raw["GEMINI_API_KEY"].encode()).decode(), "gemini_key_value"
-        )
-
-    def test_save_dev_env_preserves_existing_keys(self):
-        """_save_dev_env preserves unrelated keys already in secrets.enc."""
-        import json
-        from pathlib import Path
-        from unittest.mock import patch
-        from cryptography.fernet import Fernet
-        from app.config_manager import _save_dev_env
-
-        test_key = Fernet.generate_key().decode()
-        fernet = Fernet(test_key.encode())
-
-        secrets_file = Path(self._tmpdir) / "secrets.enc"
-        existing = {"OTHER_KEY": fernet.encrypt(b"other_val").decode()}
-        secrets_file.write_text(json.dumps(existing))
-
-        with patch("keyring.get_password", return_value=test_key), patch(
-            "keyring.set_password"
-        ):
-            _save_dev_env("new_qualer", "", _path=secrets_file)
-
-        raw = json.loads(secrets_file.read_text())
-        self.assertIn("OTHER_KEY", raw)
-        self.assertEqual(
-            fernet.decrypt(raw["OTHER_KEY"].encode()).decode(), "other_val"
-        )
-        self.assertEqual(
-            fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "new_qualer"
-        )
-
-    def test_save_dev_env_upserts_missing_key(self):
-        """_save_dev_env adds a key when secrets.enc doesn't have it yet."""
-        import json
-        from pathlib import Path
-        from unittest.mock import patch
-        from cryptography.fernet import Fernet
-        from app.config_manager import _save_dev_env
-
-        test_key = Fernet.generate_key().decode()
-        fernet = Fernet(test_key.encode())
-
-        secrets_file = Path(self._tmpdir) / "secrets.enc"
-
-        with patch("keyring.get_password", return_value=test_key), patch(
-            "keyring.set_password"
-        ):
-            _save_dev_env("qualer123", "", _path=secrets_file)
-
-        raw = json.loads(secrets_file.read_text())
-        self.assertEqual(
-            fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "qualer123"
-        )
 
     def test_load_secrets_dev_reads_env(self):
         """_load_secrets reads plain-text values from the environment."""
@@ -166,8 +82,8 @@ class TestDevSecrets(unittest.TestCase):
         self.assertEqual(secrets.get("GEMINI_API_KEY"), "test_gemini")
 
 
-class TestFrozenSecrets(unittest.TestCase):
-    """Tests for secret handling in frozen (bundled .exe) mode."""
+class TestEncryptedSecrets(unittest.TestCase):
+    """Tests for encrypted secret storage (secrets.enc + keyring)."""
 
     def setUp(self):
         import tempfile
@@ -193,14 +109,14 @@ class TestFrozenSecrets(unittest.TestCase):
         self._keyring_set_patcher.stop()
         shutil.rmtree(self._tmpdir, ignore_errors=True)
 
-    def test_save_frozen_secrets_encrypts_values(self):
-        """_save_frozen_secrets writes encrypted JSON, not plain text."""
+    def test_save_secrets_encrypts_values(self):
+        """_save_secrets writes encrypted JSON, not plain text."""
         import json
         from pathlib import Path
-        from app.config_manager import _save_frozen_secrets
+        from app.config_manager import _save_secrets
 
         secrets_file = Path(self._tmpdir) / "secrets.enc"
-        _save_frozen_secrets("qualer_val", "gemini_val", _path=secrets_file)
+        _save_secrets("qualer_val", "gemini_val", _path=secrets_file)
 
         raw = json.loads(secrets_file.read_text())
         # Values must not be plain text.
@@ -215,29 +131,29 @@ class TestFrozenSecrets(unittest.TestCase):
         )
 
     def test_load_frozen_secrets_roundtrip(self):
-        """Values saved by _save_frozen_secrets are recovered by _load_frozen_secrets."""
+        """Values saved by _save_secrets are recovered by _load_frozen_secrets."""
         from pathlib import Path
-        from app.config_manager import _save_frozen_secrets, _load_frozen_secrets
+        from app.config_manager import _save_secrets, _load_frozen_secrets
 
         secrets_file = Path(self._tmpdir) / "secrets.enc"
-        _save_frozen_secrets("qualer_val", "gemini_val", _path=secrets_file)
+        _save_secrets("qualer_val", "gemini_val", _path=secrets_file)
 
         loaded = _load_frozen_secrets(_path=secrets_file)
         self.assertEqual(loaded.get("QUALER_API_KEY"), "qualer_val")
         self.assertEqual(loaded.get("GEMINI_API_KEY"), "gemini_val")
 
-    def test_save_frozen_secrets_preserves_unrelated_keys(self):
-        """_save_frozen_secrets keeps keys it isn't updating."""
+    def test_save_secrets_preserves_unrelated_keys(self):
+        """_save_secrets keeps keys it isn't updating."""
         import json
         from pathlib import Path
-        from app.config_manager import _save_frozen_secrets
+        from app.config_manager import _save_secrets
 
         secrets_file = Path(self._tmpdir) / "secrets.enc"
         # Seed the file with an existing key.
         existing = {"OTHER_KEY": self._fernet.encrypt(b"other_val").decode()}
         secrets_file.write_text(json.dumps(existing))
 
-        _save_frozen_secrets("new_qualer", "", _path=secrets_file)
+        _save_secrets("new_qualer", "", _path=secrets_file)
 
         raw = json.loads(secrets_file.read_text())
         self.assertIn("OTHER_KEY", raw)
