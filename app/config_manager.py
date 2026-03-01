@@ -313,42 +313,62 @@ def _save_dev_env(
     gemini_api_key: str,
     _path: Optional[Path] = None,
 ) -> None:
-    """Upsert API keys into ``.env`` as plain text.  Development only.
+    """Persist API keys using encrypted storage even in development.
 
-    All other lines (including any manually set keys) are preserved.
+    The *_path* parameter is retained for API compatibility but is not
+    currently used; secrets are stored via ``_save_frozen_secrets``.
+    """
+    # Reuse the encrypted secrets mechanism to avoid writing API keys
+    # in clear text to disk during development.
+    _save_frozen_secrets(qualer_api_key, gemini_api_key)
+
+
+def _save_frozen_secrets(
+    qualer_api_key: str,
+    gemini_api_key: str,
+    _path: Optional[Path] = None,
+) -> None:
+    """Encrypt and persist API keys into ``secrets.enc``.  Frozen mode only.
+
+    Existing keys not being updated are preserved.
     The optional *_path* parameter is for testing.
     """
-    env_path = _path if _path is not None else (Path(__file__).parent.parent / ".env")
+    path = _path if _path is not None else _secrets_file()
+    fernet = _get_fernet()
 
-    updates: dict[str, str] = {}
+    # Preserve keys that aren't being updated.
+    existing: dict[str, str] = {}
+    if path.exists():
+        try:
+            raw: dict[str, str] = json.loads(path.read_text())
+            existing = {k: fernet.decrypt(v.encode()).decode() for k, v in raw.items()}
+        except Exception as exc:
+            logging.warning(
+                "Could not read existing secrets from %s (%s: %s); overwriting.",
+                path,
+                type(exc).__name__,
+                exc,
+            )
+
     if qualer_api_key:
-        updates["QUALER_API_KEY"] = qualer_api_key
+        existing["QUALER_API_KEY"] = qualer_api_key
     if gemini_api_key:
-        updates["GEMINI_API_KEY"] = gemini_api_key
+        existing["GEMINI_API_KEY"] = gemini_api_key
 
-    existing_lines: list[str] = []
-    if env_path.exists():
-        with open(env_path, "r") as f:
-            existing_lines = f.readlines()
+    encrypted = {k: fernet.encrypt(v.encode()).decode() for k, v in existing.items()}
+    path.write_text(json.dumps(encrypted))
 
-    new_lines: list[str] = []
-    seen_keys: set[str] = set()
-    for line in existing_lines:
-        stripped = line.rstrip("\n")
-        if "=" in stripped and not stripped.lstrip().startswith("#"):
-            key = stripped.split("=", 1)[0].strip()
-            if key in updates:
-                new_lines.append(f"{key}={updates[key]}\n")
-                seen_keys.add(key)
-                continue
-        new_lines.append(line if line.endswith("\n") else line + "\n")
 
-    for key, val in updates.items():
-        if key not in seen_keys:
-            new_lines.append(f"{key}={val}\n")
+def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
+    """Persist API keys using the strategy appropriate for the current run mode.
 
-    with open(env_path, "w") as f:
-        f.writelines(new_lines)
+    * Development: plain text upsert into ``.env``.
+    * Frozen/bundled: encrypted upsert into ``secrets.enc`` next to the .exe.
+    """
+    if getattr(sys, "frozen", False):
+        _save_frozen_secrets(qualer_api_key, gemini_api_key)
+    else:
+        _save_dev_env(qualer_api_key, gemini_api_key)
 
 
 def _save_frozen_secrets(
