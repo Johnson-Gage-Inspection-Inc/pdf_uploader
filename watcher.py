@@ -7,12 +7,15 @@ To execute the script, use the command: "python watcher.py" (CLI mode, default f
 or "python watcher.py --gui" (GUI mode).  The .exe defaults to GUI mode.
 """
 
+from __future__ import annotations
+
 import argparse
 import os
 import sys
 import time
 from pathlib import Path
 from threading import Event, Lock, Thread
+from typing import Any
 
 # pip3 install watchdog
 from watchdog.events import FileSystemEventHandler
@@ -30,7 +33,7 @@ from app.connectivity import check_connectivity
 _shutdown_event = Event()
 
 # Track active observers so they can be stopped on exit.
-_active_observers: list[Observer] = []
+_active_observers: list[Any] = []
 _observers_lock = Lock()
 
 
@@ -208,11 +211,16 @@ def initialize():
     executable = sys.executable if getattr(sys, "frozen", False) else __file__
     exec_path = Path(executable).resolve()
     cp.blue(f"Running from: {exec_path}")
+    version = "development"
     try:
-        from app.version import __version__
-    except ImportError:
-        __version__ = "development"
-    cp.blue(f"Built from tag: {__version__}")
+        from app.version import (
+            __version__,  # pyright: ignore[reportAttributeAccessIssue]
+        )
+
+        version = __version__
+    except (ImportError, AttributeError):
+        pass
+    cp.blue(f"Built from tag: {version}")
 
 
 def launch_cli():

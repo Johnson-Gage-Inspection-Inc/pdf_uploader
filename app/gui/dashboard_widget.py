@@ -13,8 +13,6 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
-    QHeaderView,
-    QLayoutItem,
 )
 
 QUALER_SO_URL = "https://jgiquality.qualer.com/ServiceOrder/Info"
@@ -101,8 +99,9 @@ class DashboardWidget(QWidget):
         self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
         self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
-        header: QHeaderView = self.table.horizontalHeader()
-        header.setStretchLastSection(True)
+        header = self.table.horizontalHeader()
+        if header is not None:
+            header.setStretchLastSection(True)
         self.table.setColumnWidth(0, 70)
         self.table.setColumnWidth(1, 220)
         self.table.setColumnWidth(2, 85)
@@ -167,9 +166,11 @@ class DashboardWidget(QWidget):
         """Update the watched folders section with clickable links."""
         # Clear existing
         while self.folder_layout.count():
-            child: QLayoutItem = self.folder_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+            child = self.folder_layout.takeAt(0)
+            if child is not None:
+                widget = child.widget()
+                if widget is not None:
+                    widget.deleteLater()
 
         for folder in folders:
             status = (
