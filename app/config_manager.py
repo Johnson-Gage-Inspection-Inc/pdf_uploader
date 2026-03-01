@@ -64,6 +64,9 @@ class AppConfig:
     # Secrets (loaded from .env in dev, from secrets.enc in frozen builds)
     qualer_api_key: str = ""
     gemini_api_key: str = ""
+    qualer_auth_mode: str = "api_key"  # "api_key" or "credentials"
+    qualer_username: str = ""
+    qualer_password: str = ""
 
 
 _config: Optional[AppConfig] = None
@@ -196,6 +199,9 @@ def load_config() -> AppConfig:
     secrets = _load_secrets()
     _config.qualer_api_key = secrets.get("QUALER_API_KEY", "")
     _config.gemini_api_key = secrets.get("GEMINI_API_KEY", "")
+    _config.qualer_auth_mode = secrets.get("QUALER_AUTH_MODE", "api_key")
+    _config.qualer_username = secrets.get("QUALER_USERNAME", "")
+    _config.qualer_password = secrets.get("QUALER_PASSWORD", "")
 
     return _config
 
@@ -294,7 +300,7 @@ def _load_frozen_secrets(_path: Optional[Path] = None) -> dict[str, str]:
 
 
 def _load_secrets() -> dict[str, str]:
-    """Load API keys from the appropriate source for the current run mode.
+    """Load secrets from the appropriate source for the current run mode.
 
     * Development: plain text ``.env`` via python-dotenv.
     * Frozen/bundled: encrypted ``secrets.enc`` via Fernet + OS keychain.
@@ -304,6 +310,9 @@ def _load_secrets() -> dict[str, str]:
         return {
             "QUALER_API_KEY": os.getenv("QUALER_API_KEY", ""),
             "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", ""),
+            "QUALER_AUTH_MODE": os.getenv("QUALER_AUTH_MODE", "api_key"),
+            "QUALER_USERNAME": os.getenv("QUALER_USERNAME", ""),
+            "QUALER_PASSWORD": os.getenv("QUALER_PASSWORD", ""),
         }
     return _load_frozen_secrets()
 
@@ -311,9 +320,12 @@ def _load_secrets() -> dict[str, str]:
 def _save_secrets(
     qualer_api_key: str,
     gemini_api_key: str,
+    qualer_auth_mode: str = "api_key",
+    qualer_username: str = "",
+    qualer_password: str = "",
     _path: Optional[Path] = None,
 ) -> None:
-    """Encrypt and persist API keys into ``secrets.enc``.
+    """Encrypt and persist secrets into ``secrets.enc``.
 
     Existing keys not being updated are preserved.
     The optional *_path* parameter is for testing.
@@ -339,11 +351,34 @@ def _save_secrets(
         existing["QUALER_API_KEY"] = qualer_api_key
     if gemini_api_key:
         existing["GEMINI_API_KEY"] = gemini_api_key
+    if qualer_auth_mode:
+        existing["QUALER_AUTH_MODE"] = qualer_auth_mode
+    if qualer_username:
+        existing["QUALER_USERNAME"] = qualer_username
+    if qualer_password:
+        existing["QUALER_PASSWORD"] = qualer_password
 
     encrypted = {k: fernet.encrypt(v.encode()).decode() for k, v in existing.items()}
     path.write_text(json.dumps(encrypted))
 
 
-def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
-    """Persist API keys into encrypted ``secrets.enc``."""
-    _save_secrets(qualer_api_key, gemini_api_key)
+def save_env(
+    qualer_api_key: str = "",
+    gemini_api_key: str = "",
+    qualer_auth_mode: str = "api_key",
+    qualer_username: str = "",
+    qualer_password: str = "",
+) -> None:
+    """Persist secrets into encrypted ``secrets.enc``."""
+    _save_secrets(
+        qualer_api_key,
+        gemini_api_key,
+        qualer_auth_mode=qualer_auth_mode,
+        qualer_username=qualer_username,
+        qualer_password=qualer_password,
+    )
+
+
+def update_env_token(new_token: str) -> None:
+    """Update QUALER_API_KEY in the secrets store without disturbing other values."""
+    save_env(qualer_api_key=new_token)

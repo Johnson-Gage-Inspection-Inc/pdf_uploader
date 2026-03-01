@@ -225,6 +225,9 @@ def initialize():
 
 def launch_cli():
     """Run in CLI mode (original behavior)."""
+    from app.auth import ensure_authenticated
+
+    ensure_authenticated()
     check_connectivity()
 
     threads = []
@@ -274,6 +277,9 @@ def launch_gui():
 
     # Start watcher threads (daemon=True so they die when Qt event loop exits)
     def start_watchers():
+        from app.auth import ensure_authenticated
+
+        ensure_authenticated()
         check_connectivity()
         for folder in get_config().watched_folders:
             move_old_pdfs(folder.output_dir)

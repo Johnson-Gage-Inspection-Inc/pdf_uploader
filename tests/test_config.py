@@ -232,13 +232,18 @@ class TestConfigDialogObfuscation(unittest.TestCase):
         self.assertEqual(dlg.qualer_key.echoMode(), QLineEdit.EchoMode.Password)
         self.assertEqual(dlg.gemini_key.echoMode(), QLineEdit.EchoMode.Password)
 
-    def test_no_show_buttons_in_dialog(self):
-        """There must be no 'Show' button in the dialog."""
+    def test_no_show_buttons_for_api_keys(self):
+        """Show buttons must only exist inside the credentials group (for password),
+        not for API key fields."""
         from PyQt6.QtWidgets import QPushButton
 
         dlg = self._make_dialog(qualer="key", gemini="key")
         show_buttons = [w for w in dlg.findChildren(QPushButton) if w.text() == "Show"]
-        self.assertEqual(show_buttons, [])
+        for btn in show_buttons:
+            self.assertTrue(
+                dlg.credentials_group.isAncestorOf(btn),
+                "Show button found outside credentials group",
+            )
 
 
 if __name__ == "__main__":
