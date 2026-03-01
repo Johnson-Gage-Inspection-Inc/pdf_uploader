@@ -1,5 +1,3 @@
-from typing import Any
-
 from fitz import open as fopen, Matrix
 import numpy as np
 from pypdf import PdfReader, PdfWriter
@@ -11,13 +9,13 @@ import os
 import logging
 import tempfile
 import traceback
-from app.pdf import open_with_debug, workorders, move_file
+from app.pdf import open_with_debug, workorders
+from app.file_ops import move_file
 
 
-# TODO: Unify the return type of this function. Right now it returns a dict if no work order numbers are found in the file name, and a list if work order numbers are found in the file name. This is confusing and should be fixed.
 def reorient_pdf_for_workorders(
     filepath: str, REJECT_DIR: str
-) -> dict[Any, Any] | list[Any] | bool:
+) -> dict[str, set[int]] | bool:
     file_name = os.path.basename(filepath)
     try:
         cp.white("Checking orientation of PDF file..." + file_name)

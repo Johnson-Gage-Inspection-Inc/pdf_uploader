@@ -4,7 +4,7 @@ from os import path
 import traceback
 import httpx
 import app.color_print as cp
-import app.pdf as pdf
+from app.file_ops import increment_filename, try_rename
 from app.connectivity import check_connectivity
 from qualer_sdk.api.service_orders import get_work_orders
 from qualer_sdk.api.service_orders import get_work_order as _sdk_get_work_order
@@ -166,8 +166,8 @@ def upload(
             renamed = False
             candidate = filepath
             for _ in range(50):
-                new_filename = pdf.increment_filename(candidate)
-                if pdf.try_rename(filepath, new_filename):
+                new_filename = increment_filename(candidate)
+                if try_rename(filepath, new_filename):
                     filepath = new_filename
                     renamed = True
                     break

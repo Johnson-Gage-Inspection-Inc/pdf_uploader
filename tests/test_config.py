@@ -37,17 +37,18 @@ class TestConfig(unittest.TestCase):
         self.assertIn("qualer.com", config.QUALER_ENDPOINT)
         self.assertIn("staging", config.QUALER_STAGING_ENDPOINT)
 
-    def test_config_has_two_entries(self):
-        import app.config as config
+    def test_config_has_two_watched_folders(self):
+        from app.config_manager import get_config, WatchedFolder
 
-        self.assertIsInstance(config.CONFIG, list)
-        self.assertEqual(len(config.CONFIG), 2)
-        for entry in config.CONFIG:
-            self.assertIn("INPUT_DIR", entry)
-            self.assertIn("OUTPUT_DIR", entry)
-            self.assertIn("REJECT_DIR", entry)
-            self.assertIn("QUALER_DOCUMENT_TYPE", entry)
-            self.assertIn("VALIDATE_PO", entry)
+        cfg = get_config()
+        self.assertEqual(len(cfg.watched_folders), 2)
+        for wf in cfg.watched_folders:
+            self.assertIsInstance(wf, WatchedFolder)
+            self.assertIsInstance(wf.input_dir, str)
+            self.assertIsInstance(wf.output_dir, str)
+            self.assertIsInstance(wf.reject_dir, str)
+            self.assertIsInstance(wf.qualer_document_type, str)
+            self.assertIsInstance(wf.validate_po, bool)
 
 
 if __name__ == "__main__":

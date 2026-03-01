@@ -25,16 +25,6 @@ def __getattr__(name):
         "PO_DICT_FILE": cfg.po_dict_file,
         "QUALER_ENDPOINT": cfg.qualer_endpoint,
         "QUALER_STAGING_ENDPOINT": cfg.qualer_staging_endpoint,
-        "CONFIG": [
-            {
-                "INPUT_DIR": wf.input_dir,
-                "OUTPUT_DIR": wf.output_dir,
-                "REJECT_DIR": wf.reject_dir,
-                "QUALER_DOCUMENT_TYPE": wf.qualer_document_type,
-                "VALIDATE_PO": wf.validate_po,
-            }
-            for wf in cfg.watched_folders
-        ],
     }
     if name in _MAP:
         return _MAP[name]

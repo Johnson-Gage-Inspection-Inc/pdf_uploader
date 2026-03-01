@@ -18,7 +18,8 @@ from watchdog.observers import Observer
 import app.color_print as cp
 import app.pdf as pdf
 from app.archive import move_old_pdfs
-from app.config import CONFIG, MAX_RUNTIME
+from app.config import MAX_RUNTIME
+from app.config_manager import get_config, WatchedFolder
 from upload import process_file
 from app.connectivity import check_connectivity
 import sys
@@ -26,16 +27,16 @@ import os
 from pathlib import Path
 
 
-def process_pdfs(params):
-    for filepath in pdf.next(params[0]):
-        process_file(filepath, params)
+def process_pdfs(folder: WatchedFolder):
+    for filepath in pdf.next(folder.input_dir):
+        process_file(filepath, folder)
 
 
 class PDFFileHandler(FileSystemEventHandler):
-    def __init__(self, input_dir, params):
+    def __init__(self, input_dir: str, folder: WatchedFolder):
         super().__init__()
         self.input_dir = input_dir
-        self.parameters = params
+        self.folder = folder
         self.check_interval = 0.1
         self.stability_duration = 1  # seconds
 
@@ -43,7 +44,7 @@ class PDFFileHandler(FileSystemEventHandler):
     def on_created(self, event):
         if self.wait_for_file_stability(event.src_path):
             try:
-                process_pdfs(self.parameters)
+                process_pdfs(self.folder)
             except Exception:
                 import traceback
 
@@ -53,7 +54,7 @@ class PDFFileHandler(FileSystemEventHandler):
     def on_moved(self, event):
         if self.wait_for_file_stability(event.dest_path):
             try:
-                process_pdfs(self.parameters)
+                process_pdfs(self.folder)
             except Exception:
                 import traceback
 
@@ -87,8 +88,8 @@ class PDFFileHandler(FileSystemEventHandler):
 
 
 # Watch a directory for new PDF files
-def watch_directory(input_dir, params):
-    cp.blue(f'Watching for PDF files in "{input_dir}"...')
+def watch_directory(folder: WatchedFolder):
+    cp.blue(f'Watching for PDF files in "{folder.input_dir}"...')
 
     # Emit watcher_started signal for GUI
     try:
@@ -96,13 +97,13 @@ def watch_directory(input_dir, params):
 
         bus = get_bus()
         if bus:
-            bus.watcher_started.emit(input_dir)
+            bus.watcher_started.emit(folder.input_dir)
     except Exception:
         pass
 
-    event_handler = PDFFileHandler(input_dir, params)
+    event_handler = PDFFileHandler(folder.input_dir, folder)
     observer = Observer()
-    observer.schedule(event_handler, input_dir, recursive=False)
+    observer.schedule(event_handler, folder.input_dir, recursive=False)
     observer.start()
 
     # Record the start time
@@ -152,17 +153,9 @@ def watch_directory(input_dir, params):
 
             bus = get_bus()
             if bus:
-                bus.watcher_stopped.emit(input_dir)
+                bus.watcher_stopped.emit(folder.input_dir)
         except Exception:
             pass
-
-
-# Convert a dictionary to a list of lists
-def dict_to_list_of_lists(data):
-    result = []
-    for item in data:
-        result.append(list(item.values()))
-    return result
 
 
 def parse_args():
@@ -192,14 +185,13 @@ def launch_cli():
     check_connectivity()
 
     threads = []
-    for params in dict_to_list_of_lists(CONFIG):
-        move_old_pdfs(params[1])  # archive directory
-        move_old_pdfs(params[2])  # reject directory
-        process_pdfs(params)
+    for folder in get_config().watched_folders:
+        move_old_pdfs(folder.output_dir)
+        move_old_pdfs(folder.reject_dir)
+        process_pdfs(folder)
 
         # Create a separate thread to watch each input directory
-        input_dir = params[0]
-        thread = Thread(target=watch_directory, args=(input_dir, params))
+        thread = Thread(target=watch_directory, args=(folder,))
         thread.start()
         threads.append(thread)
 
@@ -233,14 +225,11 @@ def launch_gui():
     # Start watcher threads (daemon=True so they die when Qt event loop exits)
     def start_watchers():
         check_connectivity()
-        for params in dict_to_list_of_lists(CONFIG):
-            move_old_pdfs(params[1])
-            move_old_pdfs(params[2])
-            process_pdfs(params)
-            input_dir = params[0]
-            thread = Thread(
-                target=watch_directory, args=(input_dir, params), daemon=True
-            )
+        for folder in get_config().watched_folders:
+            move_old_pdfs(folder.output_dir)
+            move_old_pdfs(folder.reject_dir)
+            process_pdfs(folder)
+            thread = Thread(target=watch_directory, args=(folder,), daemon=True)
             thread.start()
 
     # Start watchers in a background thread to avoid blocking the GUI
