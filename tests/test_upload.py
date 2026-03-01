@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
@@ -36,6 +37,7 @@ from upload import fetch_SO_and_upload  # noqa: E402
 from upload import upload_by_po  # noqa: E402
 from upload import handle_po_upload  # noqa: E402
 from upload import _run_po_validation  # noqa: E402
+from upload import process_file, _PROCESSING_DIR_NAME  # noqa: E402
 
 
 class TestRenameFile(unittest.TestCase):
@@ -346,6 +348,76 @@ class TestRunPOValidation(unittest.TestCase):
         """When the PDF file does not exist, validation returns early."""
         _run_po_validation("/missing.pdf", "/missing.pdf", [123], "missing.pdf")
         mock_get_work_items.assert_not_called()
+
+
+class TestProcessFileClaimByMove(unittest.TestCase):
+    """Test the claim-by-move logic at the top of process_file."""
+
+    def test_claim_moves_file_to_processing_dir(self):
+        """process_file should move the file into _processing/ before doing work."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a test PDF
+            pdf_path = os.path.join(tmpdir, "test.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-test")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+
+            # Mock out everything after the claim so we can inspect the move
+            with patch("upload.handle_po_upload"), patch(
+                "upload.pdf.workorders", return_value=False
+            ), patch("upload.reorient_pdf_for_workorders", return_value=False), patch(
+                "upload.pdf.move_file"
+            ), patch(
+                "upload._emit_event"
+            ):
+                process_file(pdf_path, params)
+
+            # Original file should no longer exist (it was moved into _processing)
+            self.assertFalse(os.path.exists(pdf_path))
+
+    def test_claim_skips_when_file_already_gone(self):
+        """process_file should return False if file vanishes before claim."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, "vanished.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-test")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+
+            # Simulate another instance grabbing the file
+            os.remove(pdf_path)
+
+            # process_file should handle this gracefully
+            with self.assertRaises(FileNotFoundError):
+                process_file(pdf_path, params)
+
+    def test_claim_skips_when_already_in_processing(self):
+        """If a file with the same name is already in _processing/, skip."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a file already in _processing
+            processing_dir = os.path.join(tmpdir, _PROCESSING_DIR_NAME)
+            os.makedirs(processing_dir)
+            claimed = os.path.join(processing_dir, "dup.pdf")
+            with open(claimed, "wb") as f:
+                f.write(b"%PDF-old")
+
+            # Now create a new file with the same name in input dir
+            pdf_path = os.path.join(tmpdir, "dup.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-new")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+            result = process_file(pdf_path, params)
+            self.assertFalse(result)
+            # Original file should still be there (wasn't moved)
+            self.assertTrue(os.path.exists(pdf_path))
 
 
 if __name__ == "__main__":

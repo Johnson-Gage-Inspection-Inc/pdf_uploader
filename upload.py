@@ -29,6 +29,10 @@ from app.orientation import reorient_pdf_for_workorders
 from app.po_validator import validate_and_annotate
 import logging
 
+# Subdirectory name used to claim files before processing.
+# Files are moved here atomically so that only one instance processes each file.
+_PROCESSING_DIR_NAME = "_processing"
+
 try:
     logging.basicConfig(
         level=logging.DEBUG,
@@ -205,10 +209,43 @@ def _emit_event(
         pass  # Never let event emission break the upload flow
 
 
+def _cleanup_processing_dir(processing_dir: str) -> None:
+    """Remove the _processing/ subdirectory if it's empty."""
+    try:
+        os.rmdir(processing_dir)  # only succeeds when empty
+    except (OSError, FileNotFoundError):
+        pass
+
+
 # Main function
 def process_file(filepath: str, qualer_parameters: tuple):
     if not os.path.isfile(filepath):
         raise FileNotFoundError(f"File not found: {filepath}")
+
+    # --- Claim-by-move: atomically move the file into a _processing/ subdirectory
+    # so that no other instance of this program can process the same file.
+    input_dir = os.path.dirname(filepath)
+    processing_dir = os.path.join(input_dir, _PROCESSING_DIR_NAME)
+    os.makedirs(processing_dir, exist_ok=True)
+    claimed_path = os.path.join(processing_dir, os.path.basename(filepath))
+    try:
+        os.rename(filepath, claimed_path)
+    except FileNotFoundError:
+        cp.yellow(
+            f"Skipping '{os.path.basename(filepath)}' "
+            "-- already claimed by another instance."
+        )
+        return False
+    except FileExistsError:
+        # A file with the same name is already being processed
+        cp.yellow(
+            f"Skipping '{os.path.basename(filepath)}' "
+            "-- already in _processing/ directory."
+        )
+        return False
+
+    # From here on, work with the claimed copy
+    filepath = claimed_path
 
     cp.blue(f"Processing file: {filepath}")
 
@@ -249,7 +286,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
             if wo:
                 work_orders.append(wo)
 
-    if not uploadResult:
+    elif not uploadResult:
         # Check for work orders in file body or file name
         workorders_result: dict | list | bool = pdf.workorders(filepath)
         if not workorders_result:
@@ -265,6 +302,9 @@ def process_file(filepath: str, qualer_parameters: tuple):
                 None,
                 INPUT_DIR,
             )
+            # Move unclaimed file back so it stays visible (or to reject)
+            pdf.move_file(filepath, REJECT_DIR)
+            _cleanup_processing_dir(processing_dir)
             return False
 
         # if work orders found in filename, upload file to Qualer endpoint(s)
@@ -349,6 +389,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
             validation_result,
             INPUT_DIR,
         )
+        _cleanup_processing_dir(processing_dir)
         return False
 
     # If the file was renamed, update the filepath
@@ -390,6 +431,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
         validation_result,
         INPUT_DIR,
     )
+    _cleanup_processing_dir(processing_dir)
 
 
 def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, validate_po=False):

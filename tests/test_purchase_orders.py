@@ -189,7 +189,11 @@ class TestUpdatePONumbers(unittest.TestCase):
     @patch("app.PurchaseOrders.cp")
     def test_new_format_restores_so_to_wo(self, mock_cp, mock_api, mock_save):
         """Loading a new-format cache should populate _so_to_wo."""
-        from app.PurchaseOrders import update_PO_numbers, _so_to_wo, get_work_order_number
+        from app.PurchaseOrders import (
+            update_PO_numbers,
+            _so_to_wo,
+            get_work_order_number,
+        )
 
         payload = {
             "po_lookup": {"PO100": [999]},
