@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
+from cryptography.fernet import Fernet
 
 
 @dataclass
@@ -232,6 +233,33 @@ def save_config(config: AppConfig, path: Optional[Path] = None) -> None:
     _config = config
 
 
+def _encrypt_value(value: str) -> str:
+    """
+    Encrypt a sensitive value using Fernet if APP_SECRET_KEY is configured.
+
+    The APP_SECRET_KEY must be a URL-safe base64-encoded 32-byte key
+    suitable for cryptography.fernet.Fernet. If it is not set, the value
+    is returned as-is (plaintext).
+    """
+    if not value:
+        return value
+
+    secret_key = os.environ.get("APP_SECRET_KEY")
+    if not secret_key:
+        # No encryption key configured; fall back to plaintext storage.
+        return value
+
+    try:
+        f = Fernet(secret_key.encode())
+        token = f.encrypt(value.encode())
+        # Prefix to indicate the value is encrypted.
+        return "ENC:" + token.decode()
+    except Exception:
+        # On any encryption error, fall back to plaintext to avoid breaking
+        # existing behavior, though this reduces security.
+        return value
+
+
 def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
     """Write API keys back to .env file."""
     if getattr(sys, "frozen", False):
@@ -241,9 +269,11 @@ def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
 
     lines = []
     if qualer_api_key:
-        lines.append(f"QUALER_API_KEY={qualer_api_key}")
+        encrypted_qualer = _encrypt_value(qualer_api_key)
+        lines.append(f"QUALER_API_KEY={encrypted_qualer}")
     if gemini_api_key:
-        lines.append(f"GEMINI_API_KEY={gemini_api_key}")
+        encrypted_gemini = _encrypt_value(gemini_api_key)
+        lines.append(f"GEMINI_API_KEY={encrypted_gemini}")
 
     with open(env_path, "w") as f:
         f.write("\n".join(lines) + "\n")
