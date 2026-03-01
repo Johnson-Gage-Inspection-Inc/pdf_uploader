@@ -1,5 +1,7 @@
 """Configuration dialog for editing settings and watched folders."""
 
+import os
+
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -230,8 +232,11 @@ class ConfigDialog(QDialog):
         self.username_edit = QLineEdit(self.config.qualer_username)
         cred_layout.addRow("Username:", self.username_edit)
 
-        self.password_edit = QLineEdit(self.config.qualer_password)
+        self.password_edit = QLineEdit()
         self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_edit.setPlaceholderText(
+            "(saved — type to replace)" if self.config.qualer_password else "(not set)"
+        )
         pwd_row = QHBoxLayout()
         pwd_row.addWidget(self.password_edit)
         show_pwd = QPushButton("Show")
@@ -379,6 +384,19 @@ class ConfigDialog(QDialog):
 
         auth_mode = "credentials" if self.auth_method.currentIndex() == 1 else "api_key"
 
+        # Treat a blank password as "leave unchanged" in credentials mode.
+        # None sentinel → save_env leaves the stored value intact.
+        # Retain the current config value for the in-memory AppConfig object.
+        typed_password = self.password_edit.text()
+        qualer_password_for_config = (
+            (typed_password or self.config.qualer_password)
+            if auth_mode == "credentials"
+            else ""
+        )
+        qualer_password_for_save = (
+            (typed_password or None) if auth_mode == "credentials" else ""
+        )
+
         # Build new config — keep existing key when the field is left blank
         qualer_text = self.qualer_key.text().strip()
         gemini_text = self.gemini_key.text().strip()
@@ -398,9 +416,7 @@ class ConfigDialog(QDialog):
             qualer_username=(
                 self.username_edit.text() if auth_mode == "credentials" else ""
             ),
-            qualer_password=(
-                self.password_edit.text() if auth_mode == "credentials" else ""
-            ),
+            qualer_password=qualer_password_for_config,
         )
 
         # Save config.yaml
@@ -412,8 +428,12 @@ class ConfigDialog(QDialog):
             gemini_api_key=new_config.gemini_api_key,
             qualer_auth_mode=new_config.qualer_auth_mode,
             qualer_username=new_config.qualer_username,
-            qualer_password=new_config.qualer_password,
+            qualer_password=qualer_password_for_save,
         )
+
+        # Export new API key into the environment so the SDK client picks it up
+        if new_config.qualer_api_key:
+            os.environ["QUALER_API_KEY"] = new_config.qualer_api_key
 
         # Invalidate cached client so next API call uses new credentials
         from app.qualer_client import reset_qualer_client

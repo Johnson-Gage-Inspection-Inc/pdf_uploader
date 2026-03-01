@@ -61,15 +61,29 @@ class TestEnsureAuthenticated:
     """Tests for the ensure_authenticated function."""
 
     @patch("app.auth.get_config")
-    def test_api_key_mode_is_noop(self, mock_get_config):
+    def test_api_key_mode_sets_env_var(self, mock_get_config):
         from app.auth import ensure_authenticated
 
         mock_cfg = MagicMock()
         mock_cfg.qualer_auth_mode = "api_key"
+        mock_cfg.qualer_api_key = "test-api-key"
         mock_get_config.return_value = mock_cfg
 
-        # Should return without doing anything
         ensure_authenticated()
+
+        assert os.environ.get("QUALER_API_KEY") == "test-api-key"
+
+    @patch("app.auth.get_config")
+    def test_api_key_mode_missing_key_raises(self, mock_get_config):
+        from app.auth import AuthenticationError, ensure_authenticated
+
+        mock_cfg = MagicMock()
+        mock_cfg.qualer_auth_mode = "api_key"
+        mock_cfg.qualer_api_key = ""
+        mock_get_config.return_value = mock_cfg
+
+        with pytest.raises(AuthenticationError, match="QUALER_API_KEY"):
+            ensure_authenticated()
 
     @patch("app.auth.update_env_token")
     @patch("app.auth.qualer_login")
