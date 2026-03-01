@@ -17,7 +17,6 @@ def increment_filename(old_filename) -> str:
             break
     else:
         new_filename = old_filename.replace(".pdf", " (1).pdf")
-    sleep(1)  # Wait 1 second before renaming
     return new_filename
 
 
