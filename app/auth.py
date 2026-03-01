@@ -60,8 +60,8 @@ def ensure_authenticated() -> None:
 
     if not cfg.qualer_username or not cfg.qualer_password:
         raise AuthenticationError(
-            "Credentials mode selected but QUALER_USERNAME or "
-            "QUALER_PASSWORD not set in .env"
+            "Credentials mode selected but QUALER_USERNAME or QUALER_PASSWORD "
+            "not set in environment/secrets (.env or encrypted secrets store)"
         )
 
     base_url = QUALER_ENDPOINT.removesuffix("/api")
