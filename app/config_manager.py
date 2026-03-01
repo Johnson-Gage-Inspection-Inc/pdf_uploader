@@ -381,4 +381,6 @@ def save_env(
 
 def update_env_token(new_token: str) -> None:
     """Update QUALER_API_KEY in the secrets store without disturbing other values."""
-    save_env(qualer_api_key=new_token)
+    existing = _load_secrets()
+    current_auth_mode = existing.get("QUALER_AUTH_MODE") or "api_key"
+    save_env(qualer_api_key=new_token, qualer_auth_mode=current_auth_mode)
