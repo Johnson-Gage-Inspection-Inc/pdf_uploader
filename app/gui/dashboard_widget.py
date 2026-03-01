@@ -1,5 +1,7 @@
 """Dashboard tab: summary counters + processed files table + folder status."""
 
+import os
+
 from PyQt6.QtCore import Qt, QUrl
 from PyQt6.QtGui import QColor, QDesktopServices
 from PyQt6.QtWidgets import (
@@ -16,6 +18,7 @@ from PyQt6.QtWidgets import (
 )
 
 QUALER_SO_URL = "https://jgiquality.qualer.com/ServiceOrder/Info"
+_PROCESSING_DIR_NAME = "_processing"
 
 
 class SummaryBar(QWidget):
@@ -115,12 +118,27 @@ class DashboardWidget(QWidget):
 
     @staticmethod
     def _event_match_key(event):
-        """Return a key used to correlate pending/finished events for the same file."""
-        if event.filepath:
-            return ("filepath", event.filepath)
-        if event.folder_label:
-            return ("folder_label+filename", (event.folder_label, event.filename))
-        return ("filename", event.filename)
+        """Return a key used to correlate pending/finished events for the same file.
+
+        Uses ``(folder_label, filename)`` as the primary stable key so that
+        pending events (whose ``filepath`` points to a ``_processing/``
+        subdirectory) and finished events (whose ``filepath`` points to an
+        archive/reject directory) can still be correlated.  For pending events
+        the ``folder_label`` is empty, so the watched folder is derived by
+        stripping the ``_processing/`` component from ``filepath``.
+        """
+        filename = event.filename
+        folder = event.folder_label
+        if not folder and event.filepath:
+            # For pending events, normalize _processing/ subdir back to the
+            # watched folder so it matches the finished event's folder_label.
+            dirpath = os.path.dirname(event.filepath)
+            if os.path.basename(dirpath) == _PROCESSING_DIR_NAME:
+                dirpath = os.path.dirname(dirpath)
+            folder = dirpath
+        if folder:
+            return ("folder_label+filename", (folder, filename))
+        return ("filename", filename)
 
     def add_event(self, event):
         """Add or update a ProcessingEvent on the dashboard.
