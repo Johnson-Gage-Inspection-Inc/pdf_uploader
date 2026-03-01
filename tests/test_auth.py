@@ -13,6 +13,7 @@ def _clean_env(monkeypatch):
     monkeypatch.delenv("QUALER_AUTH_MODE", raising=False)
     monkeypatch.delenv("QUALER_USERNAME", raising=False)
     monkeypatch.delenv("QUALER_PASSWORD", raising=False)
+    monkeypatch.delenv("QUALER_API_KEY", raising=False)
 
 
 class TestQualerLogin:
