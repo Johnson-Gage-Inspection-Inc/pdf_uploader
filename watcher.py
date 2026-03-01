@@ -8,8 +8,12 @@ or "python watcher.py --gui" (GUI mode).  The .exe defaults to GUI mode.
 """
 
 import argparse
+import atexit
+import os
+import sys
 import time
-from threading import Thread
+from pathlib import Path
+from threading import Event, Thread
 
 # pip3 install watchdog
 from watchdog.events import FileSystemEventHandler
@@ -22,9 +26,12 @@ from app.config import MAX_RUNTIME
 from app.config_manager import get_config, WatchedFolder
 from upload import process_file
 from app.connectivity import check_connectivity
-import sys
-import os
-from pathlib import Path
+
+# Module-level shutdown event — set to request all watchers to stop.
+_shutdown_event = Event()
+
+# Track active observers so they can be stopped on exit.
+_active_observers: list[Observer] = []
 
 
 def process_pdfs(folder: WatchedFolder):
@@ -87,6 +94,16 @@ class PDFFileHandler(FileSystemEventHandler):
                 return False
 
 
+def request_shutdown():
+    """Signal all watcher loops to stop and clean up observers."""
+    _shutdown_event.set()
+    for obs in _active_observers:
+        try:
+            obs.stop()
+        except Exception:
+            pass
+
+
 # Watch a directory for new PDF files
 def watch_directory(folder: WatchedFolder):
     cp.blue(f'Watching for PDF files in "{folder.input_dir}"...')
@@ -103,14 +120,16 @@ def watch_directory(folder: WatchedFolder):
 
     event_handler = PDFFileHandler(folder.input_dir, folder)
     observer = Observer()
+    observer.daemon = True  # Ensure observer thread won't block exit
     observer.schedule(event_handler, folder.input_dir, recursive=False)
     observer.start()
+    _active_observers.append(observer)
 
     # Record the start time
     start_time = time.time()
 
     try:
-        while True:
+        while not _shutdown_event.is_set():
             # Periodically check connectivity
             if not check_connectivity():
                 cp.red("Connectivity lost. Pausing monitoring...")
@@ -123,9 +142,11 @@ def watch_directory(folder: WatchedFolder):
                         bus.connectivity_changed.emit(False)
                 except Exception:
                     pass
-                while not check_connectivity():
+                while not check_connectivity() and not _shutdown_event.is_set():
                     cp.yellow("Retrying connectivity in 30 seconds...")
-                    time.sleep(30)  # Retry every 30 seconds
+                    _shutdown_event.wait(30)  # Interruptible sleep
+                if _shutdown_event.is_set():
+                    break
                 cp.green("Connectivity restored. Resuming monitoring...")
                 try:
                     from app.event_bus import get_bus
@@ -141,12 +162,14 @@ def watch_directory(folder: WatchedFolder):
                 if time.time() - start_time > MAX_RUNTIME:
                     break  # Exit the loop if the maximum runtime is exceeded
 
-            time.sleep(1)
+            _shutdown_event.wait(1)  # Interruptible sleep
     except KeyboardInterrupt:
         pass  # Exit gracefully
     finally:
         observer.stop()  # Stop the file system watcher
-        observer.join()
+        observer.join(timeout=3)
+        if observer in _active_observers:
+            _active_observers.remove(observer)
         # Emit watcher_stopped signal
         try:
             from app.event_bus import get_bus
@@ -195,9 +218,16 @@ def launch_cli():
         thread.start()
         threads.append(thread)
 
-    # Wait for all threads to finish
-    for thread in threads:
-        thread.join()
+    # Wait for all threads to finish (interruptible)
+    try:
+        for thread in threads:
+            while thread.is_alive():
+                thread.join(timeout=1)
+    except KeyboardInterrupt:
+        cp.yellow("Shutting down...")
+        request_shutdown()
+        for thread in threads:
+            thread.join(timeout=5)
 
 
 def launch_gui():
@@ -236,7 +266,27 @@ def launch_gui():
     watcher_init_thread = Thread(target=start_watchers, daemon=True)
     watcher_init_thread.start()
 
+    # Ensure watchers are stopped and process exits when the app quits
+    def _on_about_to_quit():
+        request_shutdown()
+
+    app.aboutToQuit.connect(_on_about_to_quit)
+    atexit.register(_force_exit)
+
     sys.exit(app.exec())
+
+
+def _force_exit():
+    """Last-resort handler: force-kill the process if threads are still alive."""
+    import threading
+
+    alive = [
+        t
+        for t in threading.enumerate()
+        if t is not threading.main_thread() and t.is_alive() and not t.daemon
+    ]
+    if alive:
+        os._exit(0)
 
 
 def main():
