@@ -9,8 +9,10 @@ from PyQt6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QTabWidget,
+    QApplication,
 )
 
+from app.gui.config_dialog import ConfigDialog
 from app.config_manager import get_config
 from app.event_bus import EventBus, ProcessingEvent
 from app.gui.dashboard_widget import DashboardWidget
@@ -69,13 +71,14 @@ class MainWindow(QMainWindow):
         self._update_status_bar()
 
     def _build_menus(self):
-        file_menu = self.menuBar().addMenu("&File")
-        file_menu.addAction("&Settings...", self.open_settings)
-        file_menu.addSeparator()
-        file_menu.addAction("E&xit", self._quit)
+        if menu_bar := self.menuBar():
+            if file_menu := menu_bar.addMenu("&File"):
+                file_menu.addAction("&Settings...", self.open_settings)
+                file_menu.addSeparator()
+                file_menu.addAction("E&xit", self._quit)
 
-        help_menu = self.menuBar().addMenu("&Help")
-        help_menu.addAction("&About", self._show_about)
+            if help_menu := menu_bar.addMenu("&Help"):
+                help_menu.addAction("&About", self._show_about)
 
     def _on_file_started(self, filepath):
         """Show a 'Processing' row on the dashboard when a file starts."""
@@ -121,8 +124,6 @@ class MainWindow(QMainWindow):
         self.tray.update_status(folder_count, files_today)
 
     def open_settings(self):
-        from app.gui.config_dialog import ConfigDialog
-
         dialog = ConfigDialog(self)
         if dialog.exec() == QDialog.DialogCode.Accepted:
             QMessageBox.information(
@@ -133,7 +134,9 @@ class MainWindow(QMainWindow):
 
     def _show_about(self):
         try:
-            from app.version import __version__ as version
+            from app.version import (
+                __version__ as version,  # pyright: ignore[reportAttributeAccessIssue]
+            )
         except ImportError:
             version = "dev"
         QMessageBox.about(
@@ -145,9 +148,8 @@ class MainWindow(QMainWindow):
         )
 
     def _quit(self):
-        from PyQt6.QtWidgets import QApplication
-
-        QApplication.instance().quit()
+        if inst := QApplication.instance():
+            inst.quit()
 
     def closeEvent(self, event):
         """Minimize to tray instead of closing."""
