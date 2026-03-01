@@ -47,7 +47,9 @@ class MainWindow(QMainWindow):
 
         # Status bar
         self.status_label = QLabel("Starting...")
-        self.statusBar().addPermanentWidget(self.status_label)
+        sbar = self.statusBar()
+        if sbar is not None:
+            sbar.addPermanentWidget(self.status_label)
 
         # System tray
         self.tray = TrayIcon(self)
