@@ -18,7 +18,7 @@ pytesseract==0.3.13
 python-dotenv==1.0.1
 pywin32-ctypes==0.2.3
 git+https://github.com/Johnson-Gage-Inspection-Inc/qualer-sdk-python.git@703f36bca4d2e8e434c57cc7ae04e203bccad324#egg=qualer_sdk
-urllib3==2.6.0
+urllib3==2.6.3
 watchdog==6.0.0
 pytest>=9.0.2
 pdfplumber>=0.11.9
