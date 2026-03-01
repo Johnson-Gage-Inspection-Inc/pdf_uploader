@@ -258,4 +258,8 @@ def main():
 
 
 if __name__ == "__main__":
+    # Required for PyInstaller on Windows to prevent infinite process spawning
+    import multiprocessing
+
+    multiprocessing.freeze_support()
     main()
