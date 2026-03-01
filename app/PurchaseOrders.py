@@ -18,8 +18,22 @@ _so_to_wo: dict[int, str] = {}
 
 
 def get_work_order_number(service_order_id: int) -> Optional[str]:
-    """Look up the CustomOrderNumber for a given ServiceOrderId."""
-    return _so_to_wo.get(service_order_id)
+    """Look up the CustomOrderNumber for a given ServiceOrderId.
+
+    Checks the in-memory cache first.  On a miss, makes a single API call
+    to fetch the service order and caches the result so subsequent lookups
+    for the same SO are free.
+    """
+    wo = _so_to_wo.get(service_order_id)
+    if wo is not None:
+        return wo
+
+    # Cache miss – fetch from the API
+    so = api.get_service_order(service_order_id)
+    if so and so.custom_order_number:
+        _so_to_wo[service_order_id] = so.custom_order_number
+        return so.custom_order_number
+    return None
 
 
 def update_dict(

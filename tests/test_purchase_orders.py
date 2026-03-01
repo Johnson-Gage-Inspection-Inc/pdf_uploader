@@ -213,6 +213,50 @@ class TestUpdatePONumbers(unittest.TestCase):
             _so_to_wo.clear()
             os.unlink(temp_path)
 
+    def test_get_work_order_number_api_fallback(self):
+        """When SO is not in cache, get_work_order_number should call the API."""
+        from app.PurchaseOrders import get_work_order_number, _so_to_wo
+
+        _so_to_wo.clear()
+        try:
+            mock_so = MagicMock()
+            mock_so.custom_order_number = "56561-083002"
+            with patch(
+                "app.PurchaseOrders.api.get_service_order", return_value=mock_so
+            ):
+                result = get_work_order_number(1361263)
+            self.assertEqual(result, "56561-083002")
+            # Should also be cached now
+            self.assertEqual(_so_to_wo[1361263], "56561-083002")
+        finally:
+            _so_to_wo.clear()
+
+    def test_get_work_order_number_api_fallback_none(self):
+        """When API returns None, get_work_order_number should return None."""
+        from app.PurchaseOrders import get_work_order_number, _so_to_wo
+
+        _so_to_wo.clear()
+        try:
+            with patch("app.PurchaseOrders.api.get_service_order", return_value=None):
+                result = get_work_order_number(999999)
+            self.assertIsNone(result)
+        finally:
+            _so_to_wo.clear()
+
+    def test_get_work_order_number_cache_hit_no_api_call(self):
+        """When SO is in cache, get_work_order_number should not call the API."""
+        from app.PurchaseOrders import get_work_order_number, _so_to_wo
+
+        _so_to_wo.clear()
+        _so_to_wo[100] = "WO-CACHED"
+        try:
+            with patch("app.PurchaseOrders.api.get_service_order") as mock_api:
+                result = get_work_order_number(100)
+            self.assertEqual(result, "WO-CACHED")
+            mock_api.assert_not_called()
+        finally:
+            _so_to_wo.clear()
+
 
 if __name__ == "__main__":
     unittest.main()

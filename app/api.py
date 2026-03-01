@@ -7,6 +7,7 @@ import app.color_print as cp
 import app.pdf as pdf
 from app.connectivity import check_connectivity
 from qualer_sdk.api.service_orders import get_work_orders
+from qualer_sdk.api.service_orders import get_work_order as _sdk_get_work_order
 from qualer_sdk.api.service_order_documents import (
     get_documents_list,
     upload_documents_post_2,
@@ -90,6 +91,24 @@ def get_service_orders(
 
     cp.white(f"{len(response)} service orders found.")
     return response
+
+
+def get_service_order(
+    service_order_id: int,
+) -> Optional[ServiceOrdersToClientOrderResponseModel]:
+    """Fetch a single service order by its ID.
+
+    Args:
+        service_order_id: The unique service order ID.
+
+    Returns:
+        The service order response model, or None on failure.
+    """
+    try:
+        return _sdk_get_work_order.sync(service_order_id, client=make_qualer_client())
+    except Exception as e:
+        handle_exception(e)
+        return None
 
 
 def getServiceOrderId(workOrderNumber: str) -> Optional[int]:

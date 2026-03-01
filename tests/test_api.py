@@ -91,6 +91,38 @@ class TestGetServiceOrderId(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestGetServiceOrder(unittest.TestCase):
+    @patch("app.api._sdk_get_work_order.sync")
+    @patch("app.api.cp")
+    def test_get_service_order_success(self, mock_cp, mock_sync):
+        from app.api import get_service_order
+
+        mock_so = MagicMock()
+        mock_so.custom_order_number = "56561-083002"
+        mock_sync.return_value = mock_so
+
+        result = get_service_order(1361263)
+        self.assertEqual(result.custom_order_number, "56561-083002")
+        mock_sync.assert_called_once()
+
+    @patch("app.api._sdk_get_work_order.sync")
+    @patch("app.api.cp")
+    def test_get_service_order_not_found(self, mock_cp, mock_sync):
+        from app.api import get_service_order
+
+        mock_sync.return_value = None
+        result = get_service_order(999999)
+        self.assertIsNone(result)
+
+    @patch("app.api._sdk_get_work_order.sync", side_effect=Exception("API error"))
+    @patch("app.api.cp")
+    def test_get_service_order_exception(self, mock_cp, mock_sync):
+        from app.api import get_service_order
+
+        result = get_service_order(123)
+        self.assertIsNone(result)
+
+
 class TestUpload(unittest.TestCase):
     @patch("app.api.upload_documents_post_2.sync_detailed")
     @patch("app.api.cp")
