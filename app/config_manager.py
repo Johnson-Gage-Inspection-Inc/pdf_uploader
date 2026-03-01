@@ -196,6 +196,21 @@ def load_config() -> AppConfig:
     _config.qualer_username = secrets.get("QUALER_USERNAME", "")
     _config.qualer_password = secrets.get("QUALER_PASSWORD", "")
 
+    # Ensure secrets are also available via environment variables so that
+    # code which reads from os.environ (e.g., Qualer/Gemini clients) behaves
+    # consistently in both dev (.env) and frozen modes.
+    env_mappings = {
+        "QUALER_API_KEY": _config.qualer_api_key,
+        "GEMINI_API_KEY": _config.gemini_api_key,
+        "QUALER_AUTH_MODE": _config.qualer_auth_mode,
+        "QUALER_USERNAME": _config.qualer_username,
+        "QUALER_PASSWORD": _config.qualer_password,
+    }
+    for key, value in env_mappings.items():
+        if value:
+            # Do not override an explicitly set environment variable.
+            os.environ.setdefault(key, value)
+
     return _config
 
 

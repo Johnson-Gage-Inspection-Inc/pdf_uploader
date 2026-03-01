@@ -47,14 +47,28 @@ def qualer_login(username: str, password: str, base_url: str) -> str:
 def ensure_authenticated() -> None:
     """Ensure a valid token is available at startup.
 
-    For api_key mode: no-op (token comes from QUALER_API_KEY env var).
+    For api_key mode: ensure QUALER_API_KEY env var is set from config.
     For credentials mode: login to get a fresh token, persist it,
     fall back to persisted token if login fails.
 
     Raises:
-        AuthenticationError: If credentials mode and login fails with no fallback.
+        AuthenticationError: If credentials mode and login fails with no fallback,
+        or if api_key mode is selected but no API key is configured.
     """
     cfg = get_config()
+
+    # In api_key mode, propagate the configured API key into the environment
+    # so that SDK clients depending on QUALER_API_KEY can function correctly.
+    if cfg.qualer_auth_mode == "api_key":
+        if not cfg.qualer_api_key:
+            raise AuthenticationError(
+                "API key mode selected but QUALER_API_KEY is not set in "
+                "environment/secrets (.env or encrypted secrets store)"
+            )
+        os.environ["QUALER_API_KEY"] = cfg.qualer_api_key
+        return
+
+    # For any non-credentials, non-api_key modes, no authentication work is needed.
     if cfg.qualer_auth_mode != "credentials":
         return
 
