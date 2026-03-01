@@ -2,7 +2,7 @@ import os
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
-from dataclasses import dataclass
+from app.config_manager import WatchedFolder
 
 # Mock app modules BEFORE importing upload.
 # This must happen before any `from upload import ...` statements,
@@ -20,15 +20,6 @@ mock_api = MagicMock()
 
 mock_qualer_client = MagicMock()
 mock_qualer_client.make_qualer_client.return_value = MagicMock()
-
-
-@dataclass
-class WatchedFolder:
-    input_dir: str
-    output_dir: str
-    reject_dir: str
-    qualer_document_type: str = "General"
-    validate_po: bool = False
 
 
 # Create a mock config_manager that provides the real WatchedFolder
@@ -390,8 +381,10 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             # Mock out everything after the claim so we can inspect the move
             with patch("upload.handle_po_upload"), patch(
                 "upload.pdf.workorders", return_value=False
-            ), patch("upload.reorient_pdf_for_workorders", return_value=False), patch(
-                "upload.move_file"
+            ), patch(
+                "upload.reorient_pdf_for_workorders", return_value=({}, False)
+            ), patch(
+                "upload.move_file", return_value=("", False)
             ):
                 process_file(pdf_path, folder)
 
@@ -468,9 +461,9 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             with patch("upload.os.rename", side_effect=flaky_rename), patch(
                 "upload.handle_po_upload"
             ), patch("upload.pdf.workorders", return_value=False), patch(
-                "upload.reorient_pdf_for_workorders", return_value=False
+                "upload.reorient_pdf_for_workorders", return_value=({}, False)
             ), patch(
-                "upload.move_file"
+                "upload.move_file", return_value=("", False)
             ), patch(
                 "time.sleep"
             ):

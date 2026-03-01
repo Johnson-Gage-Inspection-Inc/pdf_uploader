@@ -58,8 +58,9 @@ class TestReorientPdfForWorkorders(unittest.TestCase):
     ):
         from app.orientation import reorient_pdf_for_workorders
 
-        result = reorient_pdf_for_workorders("/path/to/file.pdf", "/reject")
+        result, success = reorient_pdf_for_workorders("/path/to/file.pdf", "/reject")
         self.assertEqual(result, {"56561-123456": {0}})
+        self.assertTrue(success)
         mock_rotate.assert_called_once_with("/path/to/file.pdf", 180)
 
     @patch("app.orientation.cp")
@@ -68,8 +69,9 @@ class TestReorientPdfForWorkorders(unittest.TestCase):
     def test_right_side_up_moved_to_reject(self, mock_orient, mock_move, mock_cp):
         from app.orientation import reorient_pdf_for_workorders
 
-        result = reorient_pdf_for_workorders("/path/to/file.pdf", "/reject")
-        self.assertFalse(result)
+        result, success = reorient_pdf_for_workorders("/path/to/file.pdf", "/reject")
+        self.assertEqual(result, {})
+        self.assertFalse(success)
         mock_move.assert_called_once_with("/path/to/file.pdf", "/reject")
 
     @patch("app.orientation.cp")
@@ -82,8 +84,9 @@ class TestReorientPdfForWorkorders(unittest.TestCase):
     ):
         from app.orientation import reorient_pdf_for_workorders
 
-        result = reorient_pdf_for_workorders("/path/to/file.pdf", "/reject")
-        self.assertFalse(result)
+        result, success = reorient_pdf_for_workorders("/path/to/file.pdf", "/reject")
+        self.assertEqual(result, {})
+        self.assertFalse(success)
         mock_move.assert_called_once_with("/path/to/file.pdf", "/reject")
 
     @patch("app.orientation.cp")
@@ -92,8 +95,9 @@ class TestReorientPdfForWorkorders(unittest.TestCase):
     def test_unknown_orientation(self, mock_orient, mock_move, mock_cp):
         from app.orientation import reorient_pdf_for_workorders
 
-        result = reorient_pdf_for_workorders("/path/to/file.pdf", "/reject")
-        self.assertFalse(result)
+        result, success = reorient_pdf_for_workorders("/path/to/file.pdf", "/reject")
+        self.assertEqual(result, {})
+        self.assertFalse(success)
 
     @patch("app.orientation.cp")
     @patch(
@@ -103,8 +107,9 @@ class TestReorientPdfForWorkorders(unittest.TestCase):
     def test_file_not_found(self, mock_orient, mock_cp):
         from app.orientation import reorient_pdf_for_workorders
 
-        result = reorient_pdf_for_workorders("/nonexistent.pdf", "/reject")
-        self.assertFalse(result)
+        result, success = reorient_pdf_for_workorders("/nonexistent.pdf", "/reject")
+        self.assertEqual(result, {})
+        self.assertFalse(success)
 
 
 class TestGetTextOrientation(unittest.TestCase):

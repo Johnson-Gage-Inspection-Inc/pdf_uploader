@@ -248,9 +248,15 @@ def process_file(filepath: str, folder: WatchedFolder):
 
     cp.blue(f"Processing file: {filepath}")
 
+    # Import ProcessingEvent for GUI event emission (no-op if unavailable)
+    try:
+        from app.event_bus import ProcessingEvent
+    except Exception:
+        ProcessingEvent = None  # type: ignore[misc,assignment]
+
     # Emit processing-started signal for GUI
     try:
-        from app.event_bus import get_bus, ProcessingEvent
+        from app.event_bus import get_bus
 
         bus = get_bus()
         if bus:
@@ -285,18 +291,21 @@ def process_file(filepath: str, folder: WatchedFolder):
         # Check for work orders in file body or file name
         workorders_result = pdf.workorders(filepath)
         if not workorders_result:
-            workorders_result = reorient_pdf_for_workorders(filepath, folder.reject_dir)
+            workorders_result, reoriented = reorient_pdf_for_workorders(
+                filepath, folder.reject_dir
+            )
         if not workorders_result:
             # Move unclaimed file back so it stays visible (or to reject)
-            final_path, _ = move_file(filepath, folder.reject_dir) or (filepath, False)
-            ProcessingEvent(
-                filepath=final_path,
-                filename=filename,
-                timestamp=datetime.now(),
-                success=False,
-                error_message="No work orders found",
-                folder_label=folder.input_dir,
-            ).emit()
+            final_path, _ = move_file(filepath, folder.reject_dir)
+            if ProcessingEvent:
+                ProcessingEvent(
+                    filepath=final_path,
+                    filename=filename,
+                    timestamp=datetime.now(),
+                    success=False,
+                    error_message="No work orders found",
+                    folder_label=folder.input_dir,
+                ).emit()
             _cleanup_processing_dir(processing_dir)
             return False
 
@@ -347,18 +356,19 @@ def process_file(filepath: str, folder: WatchedFolder):
     # If the upload still failed, move the file to the reject directory
     if not uploadResult and os.path.isfile(filepath):
         cp.red("Failed to upload " + filepath + ". Moving to reject directory...")
-        final_path, _ = move_file(filepath, folder.reject_dir) or (filepath, False)
-        ProcessingEvent(
-            filepath=final_path,
-            filename=filename,
-            timestamp=datetime.now(),
-            success=False,
-            work_orders=list(work_orders),
-            service_order_ids=list(service_order_ids),
-            error_message="Upload failed",
-            validation_result=validation_result,
-            folder_label=folder.input_dir,
-        ).emit()
+        final_path, _ = move_file(filepath, folder.reject_dir)
+        if ProcessingEvent:
+            ProcessingEvent(
+                filepath=final_path,
+                filename=filename,
+                timestamp=datetime.now(),
+                success=False,
+                work_orders=list(work_orders),
+                service_order_ids=list(service_order_ids),
+                error_message="Upload failed",
+                validation_result=validation_result,
+                folder_label=folder.input_dir,
+            ).emit()
         _cleanup_processing_dir(processing_dir)
         return False
 
@@ -395,16 +405,17 @@ def process_file(filepath: str, folder: WatchedFolder):
         cp.yellow(f"Failed to remove file: {filepath} | {e}")
         logging.debug(traceback.format_exc())
 
-    ProcessingEvent(
-        filepath=final_path,
-        filename=filename,
-        timestamp=datetime.now(),
-        success=True,
-        work_orders=list(work_orders),
-        service_order_ids=list(service_order_ids),
-        validation_result=validation_result,
-        folder_label=folder.input_dir,
-    ).emit()
+    if ProcessingEvent:
+        ProcessingEvent(
+            filepath=final_path,
+            filename=filename,
+            timestamp=datetime.now(),
+            success=True,
+            work_orders=list(work_orders),
+            service_order_ids=list(service_order_ids),
+            validation_result=validation_result,
+            folder_label=folder.input_dir,
+        ).emit()
     _cleanup_processing_dir(processing_dir)
 
 
