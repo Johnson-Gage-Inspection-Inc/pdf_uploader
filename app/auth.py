@@ -73,8 +73,21 @@ def ensure_authenticated() -> None:
     except AuthenticationError:
         if cfg.qualer_api_key:
             cp.yellow(
-                "Login failed but found persisted token. " "Using existing token."
+                "Login failed but found persisted token. Using existing token."
             )
             os.environ["QUALER_API_KEY"] = cfg.qualer_api_key
         else:
             raise
+    except Exception as exc:
+        # Handle unexpected SDK/network errors similarly to authentication failures.
+        if cfg.qualer_api_key:
+            cp.yellow(
+                "Login failed due to a network or SDK error but found persisted token. "
+                "Using existing token."
+            )
+            os.environ["QUALER_API_KEY"] = cfg.qualer_api_key
+        else:
+            raise AuthenticationError(
+                "Login failed due to an unexpected error and no persisted token is "
+                "available."
+            ) from exc
