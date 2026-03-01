@@ -7,13 +7,15 @@ To execute the script, use the command: "python watcher.py" (CLI mode, default f
 or "python watcher.py --gui" (GUI mode).  The .exe defaults to GUI mode.
 """
 
+from __future__ import annotations
+
 import argparse
-import atexit
 import os
 import sys
 import time
 from pathlib import Path
-from threading import Event, Thread
+from threading import Event, Lock, Thread
+from typing import Any
 
 # pip3 install watchdog
 from watchdog.events import FileSystemEventHandler
@@ -31,7 +33,8 @@ from app.connectivity import check_connectivity
 _shutdown_event = Event()
 
 # Track active observers so they can be stopped on exit.
-_active_observers: list[Observer] = []
+_active_observers: list[Any] = []
+_observers_lock = Lock()
 
 
 def process_pdfs(folder: WatchedFolder):
@@ -97,11 +100,13 @@ class PDFFileHandler(FileSystemEventHandler):
 def request_shutdown():
     """Signal all watcher loops to stop and clean up observers."""
     _shutdown_event.set()
-    for obs in _active_observers:
+    with _observers_lock:
+        snapshot = list(_active_observers)
+    for obs in snapshot:
         try:
             obs.stop()
-        except Exception:
-            pass
+        except Exception as exc:
+            cp.yellow(f"Warning: failed to stop observer {obs!r}: {exc}")
 
 
 # Watch a directory for new PDF files
@@ -123,7 +128,8 @@ def watch_directory(folder: WatchedFolder):
     observer.daemon = True  # Ensure observer thread won't block exit
     observer.schedule(event_handler, folder.input_dir, recursive=False)
     observer.start()
-    _active_observers.append(observer)
+    with _observers_lock:
+        _active_observers.append(observer)
 
     # Record the start time
     start_time = time.time()
@@ -168,17 +174,26 @@ def watch_directory(folder: WatchedFolder):
     finally:
         observer.stop()  # Stop the file system watcher
         observer.join(timeout=3)
-        if observer in _active_observers:
-            _active_observers.remove(observer)
-        # Emit watcher_stopped signal
-        try:
-            from app.event_bus import get_bus
+        # Only treat the watcher as stopped if the observer thread has actually terminated
+        if observer.is_alive():
+            # Keep it in _active_observers so it can still be shut down later
+            cp.yellow(
+                f'Watcher thread for "{folder.input_dir}" did not stop within timeout; '
+                "keeping observer active."
+            )
+        else:
+            with _observers_lock:
+                if observer in _active_observers:
+                    _active_observers.remove(observer)
+            # Emit watcher_stopped signal
+            try:
+                from app.event_bus import get_bus
 
-            bus = get_bus()
-            if bus:
-                bus.watcher_stopped.emit(folder.input_dir)
-        except Exception:
-            pass
+                bus = get_bus()
+                if bus:
+                    bus.watcher_stopped.emit(folder.input_dir)
+            except Exception:
+                pass
 
 
 def parse_args():
@@ -196,11 +211,16 @@ def initialize():
     executable = sys.executable if getattr(sys, "frozen", False) else __file__
     exec_path = Path(executable).resolve()
     cp.blue(f"Running from: {exec_path}")
+    version = "development"
     try:
-        from app.version import __version__
-    except ImportError:
-        __version__ = "development"
-    cp.blue(f"Built from tag: {__version__}")
+        from app.version import (
+            __version__,  # pyright: ignore[reportAttributeAccessIssue]
+        )
+
+        version = __version__
+    except (ImportError, AttributeError):
+        pass
+    cp.blue(f"Built from tag: {version}")
 
 
 def launch_cli():
@@ -271,22 +291,8 @@ def launch_gui():
         request_shutdown()
 
     app.aboutToQuit.connect(_on_about_to_quit)
-    atexit.register(_force_exit)
 
     sys.exit(app.exec())
-
-
-def _force_exit():
-    """Last-resort handler: force-kill the process if threads are still alive."""
-    import threading
-
-    alive = [
-        t
-        for t in threading.enumerate()
-        if t is not threading.main_thread() and t.is_alive() and not t.daemon
-    ]
-    if alive:
-        os._exit(0)
 
 
 def main():

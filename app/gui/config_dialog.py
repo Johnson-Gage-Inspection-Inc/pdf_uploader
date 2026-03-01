@@ -129,7 +129,7 @@ class ConfigDialog(QDialog):
         self.setWindowTitle("Settings")
         self.setMinimumSize(650, 550)
         self.config = get_config()
-        self.folder_widgets: list[FolderConfigWidget] = []
+        self.folder_widgets = []
 
         main_layout = QVBoxLayout(self)
 
