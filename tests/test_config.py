@@ -36,7 +36,6 @@ class TestConfig(unittest.TestCase):
         import app.config as config
 
         self.assertIn("qualer.com", config.QUALER_ENDPOINT)
-        self.assertIn("staging", config.QUALER_STAGING_ENDPOINT)
 
     def test_config_has_two_watched_folders(self):
         from app.config_manager import get_config, WatchedFolder

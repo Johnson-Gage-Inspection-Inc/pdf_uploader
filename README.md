@@ -326,7 +326,6 @@ Install pdf_uploader using one of the following methods:
 
     ```yaml
     max_runtime: null          # null = run forever, or seconds
-    live_api: true             # false = use staging endpoint
     debug: false               # true = skip actual uploads
     delete_mode: false         # true = delete processed files, false = archive
 

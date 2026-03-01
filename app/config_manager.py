@@ -50,7 +50,6 @@ class WatchedFolder:
 @dataclass
 class AppConfig:
     max_runtime: Optional[int] = None
-    live_api: bool = True
     debug: bool = False
     delete_mode: bool = False
     tesseract_cmd_path: str = r"C:/Program Files/Tesseract-OCR/tesseract.exe"
@@ -58,7 +57,6 @@ class AppConfig:
     log_file: str = ""
     po_dict_file: str = ""
     qualer_endpoint: str = "https://jgiquality.qualer.com/api"
-    qualer_staging_endpoint: str = "https://jgiquality.staging.qualer.com/api"
     watched_folders: list[WatchedFolder] = field(default_factory=list)
 
     # Secrets (loaded from .env in dev, from secrets.enc in frozen builds)
@@ -174,7 +172,6 @@ def load_config() -> AppConfig:
 
         _config = AppConfig(
             max_runtime=raw.get("max_runtime"),
-            live_api=raw.get("live_api", True),
             debug=raw.get("debug", False),
             delete_mode=raw.get("delete_mode", False),
             tesseract_cmd_path=raw.get(
@@ -185,10 +182,6 @@ def load_config() -> AppConfig:
             po_dict_file=_resolve_path(po_dict_raw, sp),
             qualer_endpoint=raw.get(
                 "qualer_endpoint", "https://jgiquality.qualer.com/api"
-            ),
-            qualer_staging_endpoint=raw.get(
-                "qualer_staging_endpoint",
-                "https://jgiquality.staging.qualer.com/api",
             ),
             watched_folders=folders,
         )
@@ -230,7 +223,6 @@ def save_config(config: AppConfig, path: Optional[Path] = None) -> None:
 
     data = {
         "max_runtime": config.max_runtime,
-        "live_api": config.live_api,
         "debug": config.debug,
         "delete_mode": config.delete_mode,
         "tesseract_cmd_path": config.tesseract_cmd_path,
@@ -238,7 +230,6 @@ def save_config(config: AppConfig, path: Optional[Path] = None) -> None:
         "log_file": config.log_file,
         "po_dict_file": config.po_dict_file,
         "qualer_endpoint": config.qualer_endpoint,
-        "qualer_staging_endpoint": config.qualer_staging_endpoint,
         "watched_folders": [
             {
                 "input_dir": wf.input_dir,

@@ -154,13 +154,7 @@ class ConfigDialog(QDialog):
         # API Mode
         api_row = QHBoxLayout()
         self.radio_production = QRadioButton("Production")
-        self.radio_staging = QRadioButton("Staging")
-        if self.config.live_api:
-            self.radio_production.setChecked(True)
-        else:
-            self.radio_staging.setChecked(True)
         api_row.addWidget(self.radio_production)
-        api_row.addWidget(self.radio_staging)
         api_row.addStretch()
         layout.addRow("API Mode:", api_row)
 
@@ -330,11 +324,7 @@ class ConfigDialog(QDialog):
         if not username or not password:
             QMessageBox.warning(self, "Validation", "Enter username and password.")
             return
-        base_url = (
-            self.config.qualer_endpoint
-            if self.radio_production.isChecked()
-            else self.config.qualer_staging_endpoint
-        ).removesuffix("/api")
+        base_url = (self.config.qualer_endpoint).removesuffix("/api")
         try:
             token = qualer_login(username, password, base_url)
             QMessageBox.information(
@@ -394,7 +384,6 @@ class ConfigDialog(QDialog):
         gemini_text = self.gemini_key.text().strip()
         new_config = AppConfig(
             max_runtime=max_runtime,
-            live_api=self.radio_production.isChecked(),
             debug=self.debug_check.isChecked(),
             delete_mode=self.delete_check.isChecked(),
             tesseract_cmd_path=self.tesseract_path.text(),
@@ -402,7 +391,6 @@ class ConfigDialog(QDialog):
             log_file=self.config.log_file,
             po_dict_file=self.config.po_dict_file,
             qualer_endpoint=self.config.qualer_endpoint,
-            qualer_staging_endpoint=self.config.qualer_staging_endpoint,
             watched_folders=folders,
             qualer_api_key=qualer_text or self.config.qualer_api_key,
             gemini_api_key=gemini_text or self.config.gemini_api_key,

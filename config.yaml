@@ -1,5 +1,4 @@
 max_runtime: null
-live_api: true
 debug: false
 delete_mode: false
 tesseract_cmd_path: "C:/Program Files/Tesseract-OCR/tesseract.exe"
@@ -7,7 +6,6 @@ sharepoint_path: "~/Johnson Gage and Inspection, Inc/Johnson Gage and Inspection
 log_file: "{sharepoint_path}Logs/pdfUploader.log"
 po_dict_file: "{sharepoint_path}Logs/DoNotMoveThisFile.json.gz"
 qualer_endpoint: "https://jgiquality.qualer.com/api"
-qualer_staging_endpoint: "https://jgiquality.staging.qualer.com/api"
 watched_folders:
   - input_dir: "{sharepoint_path}!!! Front Office Scanned Docs - HOLDING"
     output_dir: "{sharepoint_path}!!! Front Office Scanned Docs - HOLDING/Archives"
