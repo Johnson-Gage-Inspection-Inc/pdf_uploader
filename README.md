@@ -147,7 +147,7 @@ The pdfuploader project is designed to simplify the process of uploading scanned
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/config_manager.py'>config_manager.py</a></b></td>
-        <td>- YAML-based configuration loader using Pydantic models.<br>- Resolves <code>{sharepoint_path}</code> placeholders and <code>~</code> in paths.</td>
+        <td>- YAML-based configuration loader using dataclasses for config models.<br>- Resolves <code>{sharepoint_path}</code> placeholders and <code>~</code> in paths.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/event_bus.py'>event_bus.py</a></b></td>

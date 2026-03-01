@@ -322,8 +322,10 @@ def process_file(filepath: str, qualer_parameters: tuple):
         if not workorders_result:
             workorders_result = reorient_pdf_for_workorders(filepath, REJECT_DIR)
         if not workorders_result:
+            # Move unclaimed file back so it stays visible (or to reject)
+            final_path = pdf.move_file(filepath, REJECT_DIR) or filepath
             _emit_event(
-                filepath,
+                final_path,
                 filename,
                 False,
                 [],
@@ -332,8 +334,6 @@ def process_file(filepath: str, qualer_parameters: tuple):
                 None,
                 INPUT_DIR,
             )
-            # Move unclaimed file back so it stays visible (or to reject)
-            pdf.move_file(filepath, REJECT_DIR)
             _cleanup_processing_dir(processing_dir)
             return False
 
@@ -382,7 +382,10 @@ def process_file(filepath: str, qualer_parameters: tuple):
                     now = datetime.now().strftime(
                         "%Y%m%dT%H%M%S"
                     )  # get the current date and time,
-                    child_pdf_path = f"{INPUT_DIR}/scanned_doc_{workorder}_{now}.pdf"
+                    child_pdf_path = os.path.join(
+                        processing_dir,
+                        f"scanned_doc_{workorder}_{now}.pdf",
+                    )
                     pdf.create_child_pdf(
                         filepath, pg_nums, child_pdf_path
                     )  # extract relevant pages from PDF, and
@@ -408,9 +411,9 @@ def process_file(filepath: str, qualer_parameters: tuple):
     # If the upload still failed, move the file to the reject directory
     if not uploadResult and os.path.isfile(filepath):
         cp.red("Failed to upload " + filepath + ". Moving to reject directory...")
-        pdf.move_file(filepath, REJECT_DIR)
+        final_path = pdf.move_file(filepath, REJECT_DIR) or filepath
         _emit_event(
-            filepath,
+            final_path,
             filename,
             False,
             work_orders,
@@ -432,16 +435,20 @@ def process_file(filepath: str, qualer_parameters: tuple):
 
     # Remove file if there were no failures
     # (if there were any failures, file will remain)
+    final_path = filepath
     try:
         if filepath and (OUTPUT_DIR is None or OUTPUT_DIR == ""):
             os.remove(filepath)
+            final_path = ""  # file deleted
         elif filepath:
             # Archive only version:
             try:
                 # Move the file to the archive folder.
                 # move_file handles FileExistsError internally
                 # by incrementing the destination filename.
-                pdf.move_file(filepath, OUTPUT_DIR)
+                moved = pdf.move_file(filepath, OUTPUT_DIR)
+                if moved:
+                    final_path = moved
             except Exception as e:
                 cp.red(e)
                 traceback.print_exc()
@@ -452,7 +459,7 @@ def process_file(filepath: str, qualer_parameters: tuple):
         logging.debug(traceback.format_exc())
 
     _emit_event(
-        filepath,
+        final_path,
         filename,
         True,
         work_orders,

@@ -113,20 +113,33 @@ class DashboardWidget(QWidget):
         self.folder_layout = QVBoxLayout(self.folder_status)
         layout.addWidget(self.folder_status)
 
+    @staticmethod
+    def _event_match_key(event):
+        """Return a key used to correlate pending/finished events for the same file."""
+        if event.filepath:
+            return ("filepath", event.filepath)
+        if event.folder_label:
+            return ("folder_label+filename", (event.folder_label, event.filename))
+        return ("filename", event.filename)
+
     def add_event(self, event):
         """Add or update a ProcessingEvent on the dashboard.
 
         If the event is finished (not pending) and a pending event for the
-        same filename already exists, the pending row is replaced in place.
+        same file already exists, the pending row is replaced in place.
         """
         if not event.pending:
             # Replace the matching pending event if one exists
+            new_key = self._event_match_key(event)
             for i, existing in enumerate(self._events):
-                if existing.pending and existing.filename == event.filename:
-                    self._events[i] = event
-                    self._refresh_table()
-                    self.summary_bar.update_counts(self._events)
-                    return
+                if not existing.pending:
+                    continue
+                if self._event_match_key(existing) != new_key:
+                    continue
+                self._events[i] = event
+                self._refresh_table()
+                self.summary_bar.update_counts(self._events)
+                return
 
         self._events.insert(0, event)
         self._refresh_table()
@@ -250,8 +263,7 @@ class DashboardWidget(QWidget):
         underscores (e.g. ``"no_pricing"``).  Present a more human-friendly
         version in the table by converting underscores to spaces and using
         title case.  The colour choice continues to be determined by the raw
-        status value so that the mapping in :meth:`color_map` can remain
-        straightforward.
+        status value using the ``color_map`` dictionary defined below.
         """
         if not event.validation_result:
             return ("", None)

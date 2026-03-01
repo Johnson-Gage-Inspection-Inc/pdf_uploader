@@ -379,7 +379,7 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             self.assertFalse(os.path.exists(pdf_path))
 
     def test_claim_skips_when_file_already_gone(self):
-        """process_file should return False if file vanishes before claim."""
+        """process_file should return False if file vanishes between isfile and rename."""
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -389,12 +389,18 @@ class TestProcessFileClaimByMove(unittest.TestCase):
 
             params = (tmpdir, tmpdir, tmpdir, "general", False)
 
-            # Simulate another instance grabbing the file
-            os.remove(pdf_path)
+            def _race_rename(src, dst):
+                """Simulate the file disappearing between isfile check and rename."""
+                if os.path.exists(src):
+                    os.remove(src)
+                raise FileNotFoundError(errno.ENOENT, "No such file", src)
 
-            # process_file should handle this gracefully
-            with self.assertRaises(FileNotFoundError):
-                process_file(pdf_path, params)
+            import errno
+
+            with patch("upload.os.rename", side_effect=_race_rename):
+                result = process_file(pdf_path, params)
+
+            self.assertFalse(result)
 
     def test_claim_skips_when_already_in_processing(self):
         """If a file with the same name is already in _processing/, skip."""
@@ -440,17 +446,13 @@ class TestProcessFileClaimByMove(unittest.TestCase):
                 return original_rename(src, dst)
 
             with patch("upload.os.rename", side_effect=flaky_rename), patch(
-                "upload.os.makedirs"
-            ), patch("upload.handle_po_upload"), patch(
-                "upload.pdf.workorders", return_value=False
-            ), patch(
+                "upload.handle_po_upload"
+            ), patch("upload.pdf.workorders", return_value=False), patch(
                 "upload.reorient_pdf_for_workorders", return_value=False
             ), patch(
                 "upload.pdf.move_file"
             ), patch(
                 "upload._emit_event"
-            ), patch(
-                "upload.os.path.isfile", return_value=True
             ), patch(
                 "time.sleep"
             ):
@@ -458,6 +460,12 @@ class TestProcessFileClaimByMove(unittest.TestCase):
 
             # rename should have been called 3 times (1 initial + 2 retries)
             self.assertEqual(call_count["n"], 3)
+            # File should have been moved into _processing/
+            processing_dir = os.path.join(tmpdir, _PROCESSING_DIR_NAME)
+            self.assertTrue(
+                os.path.isdir(processing_dir),
+                "_processing/ directory should have been created",
+            )
 
     def test_claim_gives_up_after_max_retries(self):
         """After 6 PermissionError attempts, process_file should return False."""
