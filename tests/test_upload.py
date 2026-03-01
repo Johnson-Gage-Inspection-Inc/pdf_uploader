@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
+from app.config_manager import WatchedFolder
 
 # Mock app modules BEFORE importing upload.
 # This must happen before any `from upload import ...` statements,
@@ -20,12 +21,24 @@ mock_api = MagicMock()
 mock_qualer_client = MagicMock()
 mock_qualer_client.make_qualer_client.return_value = MagicMock()
 
+
+# Create a mock config_manager that provides the real WatchedFolder
+mock_config_manager = MagicMock()
+mock_config_manager.WatchedFolder = WatchedFolder
+
+mock_file_ops = MagicMock()
+mock_file_ops.increment_filename = MagicMock()
+mock_file_ops.move_file = MagicMock()
+mock_file_ops.try_rename = MagicMock()
+
 sys.modules["app"] = MagicMock()
 sys.modules["app.color_print"] = MagicMock()
 sys.modules["app.PurchaseOrders"] = MagicMock()
 sys.modules["app.api"] = mock_api
 sys.modules["app.pdf"] = MagicMock()
+sys.modules["app.file_ops"] = mock_file_ops
 sys.modules["app.config"] = mock_config
+sys.modules["app.config_manager"] = mock_config_manager
 sys.modules["app.orientation"] = MagicMock()
 sys.modules["app.po_validator"] = MagicMock()
 sys.modules["app.qualer_client"] = mock_qualer_client
@@ -41,8 +54,8 @@ from upload import process_file, _PROCESSING_DIR_NAME  # noqa: E402
 
 
 class TestRenameFile(unittest.TestCase):
-    @patch("upload.pdf.increment_filename")
-    @patch("upload.pdf.try_rename")
+    @patch("upload.increment_filename")
+    @patch("upload.try_rename")
     def test_rename_file_success(self, mock_try_rename, mock_increment):
         mock_increment.return_value = "/path/to/file_1.pdf"
         mock_try_rename.return_value = True
@@ -50,8 +63,8 @@ class TestRenameFile(unittest.TestCase):
         result = rename_file("/path/to/file.pdf", ["other_file.pdf"])
         self.assertEqual(result, "/path/to/file_1.pdf")
 
-    @patch("upload.pdf.increment_filename")
-    @patch("upload.pdf.try_rename")
+    @patch("upload.increment_filename")
+    @patch("upload.try_rename")
     def test_rename_file_already_exists(self, mock_try_rename, mock_increment):
         mock_increment.side_effect = ["/path/to/file_1.pdf", "/path/to/file_2.pdf"]
         mock_try_rename.return_value = True
@@ -211,8 +224,8 @@ class TestHandlePOUpload(unittest.TestCase):
 
 
 class TestRenameFileEdgeCases(unittest.TestCase):
-    @patch("upload.pdf.increment_filename")
-    @patch("upload.pdf.try_rename")
+    @patch("upload.increment_filename")
+    @patch("upload.try_rename")
     def test_rename_file_max_attempts(self, mock_try_rename, mock_increment):
         """Test rename_file when all attempts fail."""
         mock_increment.return_value = "/path/to/file_1.pdf"
@@ -222,8 +235,8 @@ class TestRenameFileEdgeCases(unittest.TestCase):
         # Should return original filepath after exhausting attempts
         self.assertEqual(result, "/path/to/file.pdf")
 
-    @patch("upload.pdf.increment_filename")
-    @patch("upload.pdf.try_rename", side_effect=FileNotFoundError)
+    @patch("upload.increment_filename")
+    @patch("upload.try_rename", side_effect=FileNotFoundError)
     def test_rename_file_not_found_raises(self, mock_try_rename, mock_increment):
         mock_increment.return_value = "/path/to/file_1.pdf"
 
@@ -363,17 +376,17 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             with open(pdf_path, "wb") as f:
                 f.write(b"%PDF-test")
 
-            params = (tmpdir, tmpdir, tmpdir, "general", False)
+            folder = WatchedFolder(tmpdir, tmpdir, tmpdir, "general", False)
 
             # Mock out everything after the claim so we can inspect the move
             with patch("upload.handle_po_upload"), patch(
                 "upload.pdf.workorders", return_value=False
-            ), patch("upload.reorient_pdf_for_workorders", return_value=False), patch(
-                "upload.pdf.move_file"
             ), patch(
-                "upload._emit_event"
+                "upload.reorient_pdf_for_workorders", return_value=({}, False)
+            ), patch(
+                "upload.move_file", return_value=(pdf_path, False)
             ):
-                process_file(pdf_path, params)
+                process_file(pdf_path, folder)
 
             # Original file should no longer exist (it was moved into _processing)
             self.assertFalse(os.path.exists(pdf_path))
@@ -387,7 +400,7 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             with open(pdf_path, "wb") as f:
                 f.write(b"%PDF-test")
 
-            params = (tmpdir, tmpdir, tmpdir, "general", False)
+            folder = WatchedFolder(tmpdir, tmpdir, tmpdir, "general", False)
 
             def _race_rename(src, dst):
                 """Simulate the file disappearing between isfile check and rename."""
@@ -398,7 +411,7 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             import errno
 
             with patch("upload.os.rename", side_effect=_race_rename):
-                result = process_file(pdf_path, params)
+                result = process_file(pdf_path, folder)
 
             self.assertFalse(result)
 
@@ -419,8 +432,8 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             with open(pdf_path, "wb") as f:
                 f.write(b"%PDF-new")
 
-            params = (tmpdir, tmpdir, tmpdir, "general", False)
-            result = process_file(pdf_path, params)
+            folder = WatchedFolder(tmpdir, tmpdir, tmpdir, "general", False)
+            result = process_file(pdf_path, folder)
             self.assertFalse(result)
             # Original file should still be there (wasn't moved)
             self.assertTrue(os.path.exists(pdf_path))
@@ -434,7 +447,7 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             with open(pdf_path, "wb") as f:
                 f.write(b"%PDF-test")
 
-            params = (tmpdir, tmpdir, tmpdir, "general", False)
+            folder = WatchedFolder(tmpdir, tmpdir, tmpdir, "general", False)
 
             original_rename = os.rename
             call_count = {"n": 0}
@@ -448,15 +461,13 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             with patch("upload.os.rename", side_effect=flaky_rename), patch(
                 "upload.handle_po_upload"
             ), patch("upload.pdf.workorders", return_value=False), patch(
-                "upload.reorient_pdf_for_workorders", return_value=False
+                "upload.reorient_pdf_for_workorders", return_value=({}, False)
             ), patch(
-                "upload.pdf.move_file"
-            ), patch(
-                "upload._emit_event"
+                "upload.move_file", return_value=(pdf_path, False)
             ), patch(
                 "time.sleep"
             ):
-                process_file(pdf_path, params)
+                process_file(pdf_path, folder)
 
             # rename should have been called 3 times (1 initial + 2 retries)
             self.assertEqual(call_count["n"], 3)
@@ -476,7 +487,7 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             with open(pdf_path, "wb") as f:
                 f.write(b"%PDF-test")
 
-            params = (tmpdir, tmpdir, tmpdir, "general", False)
+            folder = WatchedFolder(tmpdir, tmpdir, tmpdir, "general", False)
 
             with patch(
                 "upload.os.rename", side_effect=PermissionError("locked")
@@ -485,7 +496,7 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             ), patch(
                 "time.sleep"
             ):
-                result = process_file(pdf_path, params)
+                result = process_file(pdf_path, folder)
 
             self.assertFalse(result)
 

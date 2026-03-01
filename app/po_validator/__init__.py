@@ -30,8 +30,10 @@ from .models import (
     LineAnnotation,
     MissingWorkItem,
     POLineItem,
+    PriceMatchCandidate,
     PriceMismatch,
     ValidationResult,
+    WorkItemData,
 )
 from .reporter import print_result
 
@@ -110,10 +112,13 @@ def validate(
             notes="No work items found in Qualer for this order; validation skipped.",
         )
 
+    # Normalise SDK models into WorkItemData for clean attribute access.
+    items = [WorkItemData.from_sdk_model(wi) for wi in work_items]
+
     # Build a list of (normalised_key, work_item) for items with S/Ns.
     # Uses a list (not a dict) so duplicate S/Ns are preserved.
-    wi_entries: list[tuple[str, object]] = []
-    for wi in work_items:
+    wi_entries: list[tuple[str, WorkItemData]] = []
+    for wi in items:
         if wi.serial_number:
             wi_entries.append((_normalise_sn(wi.serial_number), wi))
         if (
@@ -183,10 +188,8 @@ def validate(
         )
 
     # ---- Helper: get price from a work item or PO line ----
-    def _wi_price(wi: object) -> float | None:
-        charge = getattr(wi, "service_charge", None)
-        total = getattr(wi, "service_total", None)
-        return charge if charge is not None else total
+    def _wi_price(wi: WorkItemData) -> float | None:
+        return wi.service_charge if wi.service_charge is not None else wi.service_total
 
     def _po_price(item: POLineItem) -> float | None:
         return item.unit_price if item.unit_price is not None else item.extended_price
@@ -201,8 +204,7 @@ def validate(
     matched_wi_idxs: set[int] = set()  # indices into wi_entries
     matched_po_idxs: set[int] = set()  # indices into extraction.line_items
 
-    # (|diff|, wi_idx, po_idx, expected, po_price)
-    candidates: list[tuple[float, int, int, float, float]] = []
+    candidates: list[PriceMatchCandidate] = []
     for wi_idx, (wi_key, wi) in enumerate(wi_entries):
         expected = _wi_price(wi)
         if expected is None:
@@ -215,19 +217,27 @@ def validate(
             po_p = _po_price(po_item)
             if po_p is None:
                 continue
-            candidates.append((abs(po_p - expected), wi_idx, po_idx, expected, po_p))
+            candidates.append(
+                PriceMatchCandidate(
+                    price_diff=abs(po_p - expected),
+                    wi_idx=wi_idx,
+                    po_idx=po_idx,
+                    expected_price=expected,
+                    po_price=po_p,
+                )
+            )
 
     candidates.sort()  # smallest price difference first
 
-    for _, wi_idx, po_idx, expected, po_p in candidates:
-        if wi_idx in matched_wi_idxs or po_idx in matched_po_idxs:
+    for c in candidates:
+        if c.wi_idx in matched_wi_idxs or c.po_idx in matched_po_idxs:
             continue
-        matched_wi_idxs.add(wi_idx)
-        matched_po_idxs.add(po_idx)
-        wi = wi_entries[wi_idx][1]
-        po_item = extraction.line_items[po_idx]
+        matched_wi_idxs.add(c.wi_idx)
+        matched_po_idxs.add(c.po_idx)
+        wi = wi_entries[c.wi_idx][1]
+        po_item = extraction.line_items[c.po_idx]
         checked += 1
-        diff = po_p - expected
+        diff = c.po_price - c.expected_price
         if abs(diff) <= PRICE_TOLERANCE:
             matched_count += 1
             annotations.append(
@@ -236,33 +246,27 @@ def validate(
                     comment="",
                     page_number=po_item.page_number,
                     bbox=po_item.bbox,
-                    search_text=_search_text_for(
-                        po_item, getattr(wi, "serial_number", None)
-                    ),
+                    search_text=_search_text_for(po_item, wi.serial_number),
                 )
             )
         else:
             mismatches.append(
                 PriceMismatch(
-                    serial_number=po_item.serial_number
-                    or getattr(wi, "serial_number", "")
-                    or "",
-                    po_price=po_p,
-                    expected_price=expected,
+                    serial_number=po_item.serial_number or wi.serial_number,
+                    po_price=c.po_price,
+                    expected_price=c.expected_price,
                     difference=round(diff, 2),
                     description=po_item.description,
-                    work_item_id=getattr(wi, "work_item_id", None),
+                    work_item_id=wi.work_item_id,
                 )
             )
             annotations.append(
                 LineAnnotation(
                     status="mismatch",
-                    comment=f"Expected ${expected:,.2f}, PO says ${po_p:,.2f}",
+                    comment=f"Expected ${c.expected_price:,.2f}, PO says ${c.po_price:,.2f}",
                     page_number=po_item.page_number,
                     bbox=po_item.bbox,
-                    search_text=_search_text_for(
-                        po_item, getattr(wi, "serial_number", None)
-                    ),
+                    search_text=_search_text_for(po_item, wi.serial_number),
                 )
             )
 
@@ -275,10 +279,8 @@ def validate(
         if wi_idx in matched_wi_idxs:
             continue
 
-        sn_str = getattr(wi, "serial_number", "") or ""
-        asset = (
-            getattr(wi, "asset_name", "") or getattr(wi, "asset_description", "") or ""
-        )
+        sn_str = wi.serial_number
+        asset = wi.asset_name
 
         # Build search variants: original S/N + version without parenthetical
         sn_variants = [sn_str] if sn_str else []
@@ -350,7 +352,7 @@ def validate(
                         expected_price=expected,
                         difference=round(diff, 2),
                         description=po_item.description,
-                        work_item_id=getattr(wi, "work_item_id", None),
+                        work_item_id=wi.work_item_id,
                     )
                 )
                 annotations.append(
@@ -369,9 +371,9 @@ def validate(
         if wi_idx not in matched_wi_idxs:
             missing_items.append(
                 MissingWorkItem(
-                    work_item_id=getattr(wi, "work_item_id", 0) or 0,
-                    serial_number=getattr(wi, "serial_number", "") or "",
-                    asset_name=getattr(wi, "asset_name", "") or "",
+                    work_item_id=wi.work_item_id,
+                    serial_number=wi.serial_number,
+                    asset_name=wi.asset_name,
                     expected_price=_wi_price(wi),
                 )
             )

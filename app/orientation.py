@@ -1,5 +1,3 @@
-from typing import Any
-
 from fitz import open as fopen, Matrix
 import numpy as np
 from pypdf import PdfReader, PdfWriter
@@ -11,13 +9,23 @@ import os
 import logging
 import tempfile
 import traceback
-from app.pdf import open_with_debug, workorders, move_file
+from app.pdf import open_with_debug, workorders
+from app.file_ops import move_file
 
 
-# TODO: Unify the return type of this function. Right now it returns a dict if no work order numbers are found in the file name, and a list if work order numbers are found in the file name. This is confusing and should be fixed.
 def reorient_pdf_for_workorders(
-    filepath: str, REJECT_DIR: str
-) -> dict[Any, Any] | list[Any] | bool:
+    filepath: str, reject_dir: str
+) -> tuple[dict[str, set[int]], bool]:
+    """Check the orientation of the PDF file, rotate if necessary, and check for work orders.
+
+    Args:
+        filepath (str): The path to the PDF file to check and reorient if necessary
+        reject_dir (str): The directory to move the file to if reorientation fails or no work orders are found
+
+    Returns (tuple):
+        dict[str, set[int]]: A dictionary mapping work order numbers to sets of page numbers
+        bool: whether the file was successfully reoriented (True) or moved to reject (False)
+    """
     file_name = os.path.basename(filepath)
     try:
         cp.white("Checking orientation of PDF file..." + file_name)
@@ -29,26 +37,26 @@ def reorient_pdf_for_workorders(
             if orders := workorders(
                 filepath
             ):  # parse work order numbers from PDF file name/body
-                return orders
+                return orders, True
             else:  # If there are still no work orders, skip the file
                 cp.yellow(f"no work order found in {file_name}, file skipped")
-                move_file(filepath, REJECT_DIR)  # move file to reject directory
-                return False  # return False to main loop
+                move_file(filepath, reject_dir)  # move file to reject directory
+                return {}, False  # return False to main loop
         elif orientation == 0:
             cp.white(
                 "File appears to be right-side-up. Moving file to reject directory..."
             )
-            move_file(filepath, REJECT_DIR)  # move file to reject directory
+            move_file(filepath, reject_dir)  # move file to reject directory
         else:
             cp.yellow(f"Reorientation of {file_name} failed. Skipping file...")
             cp.white("Moving file to reject directory...")
-            move_file(filepath, REJECT_DIR)  # move file to reject directory
-            return False
+            move_file(filepath, reject_dir)  # move file to reject directory
+            return {}, False
     except FileNotFoundError as e:
         cp.red(f"Error: {filepath} not found. {e}")
     except Exception as e:
         cp.red(f"Error: {e}\nFile: {file_name}")
-    return False
+    return {}, False
 
 
 def get_pdf_orientation(filepath) -> int | None:

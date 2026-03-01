@@ -1,7 +1,5 @@
 # /app/pdf.py
 
-from typing import Any
-
 from pdf2image import convert_from_path
 from pypdf import PdfReader, PdfWriter
 from pytesseract import pytesseract, image_to_string
@@ -10,7 +8,6 @@ from app.config import tesseract_cmd_path
 
 import app.color_print as cp
 from re import findall
-from time import sleep
 from traceback import print_exc
 import os
 import sys
@@ -131,14 +128,13 @@ def create_child_pdf(filepath, pg_nums, output_path):
 
 # extract work orders from pdf, create a set of pages for each work order
 # append pages with no work order to the previous work order.
-# TODO: Make the return type consistent. Right now it returns a dict if no work order numbers are found in the file name, and a list if work order numbers are found in the file name. This is confusing and should be fixed.
-def workorders(filepath) -> dict | list[Any]:
+def workorders(filepath) -> dict[str, set[int]]:
     order_number = ""
     fileorders = findall(WO_NUM_FORMAT, filepath)  # Find order numbers in file name
 
     # Use order number from file name if found
-    if fileorders != []:
-        return fileorders
+    if fileorders:
+        return {wo: set() for wo in fileorders}
 
     pages = extract(filepath)  # Get list of text from PDF
     scannedorders: dict[str, set[int]] = {}  # Create empty dictionary for order numbers
@@ -159,77 +155,3 @@ def workorders(filepath) -> dict | list[Any]:
             scannedorders[order_number] = set()  # Create empty set for order number
         scannedorders[order_number].add(page_index)  # Add page number to set
     return scannedorders  # Return dictionary of order numbers and page numbers
-
-
-# Function to increment filename if the file already exists
-def increment_filename(old_filename):
-    for i in range(99, 0, -1):
-        old_suffix = f" ({i}).pdf"
-        new_suffix = f" ({i + 1}).pdf"
-        new_filename = old_filename.replace(old_suffix, new_suffix)
-        if new_filename != old_filename:
-            break
-    else:
-        new_filename = old_filename.replace(".pdf", " (1).pdf")
-    sleep(1)  # Wait 1 second before renaming
-    return new_filename
-
-
-# Move the file to the reject directory
-def move_file(filepath, output_dir) -> str | bool:
-    file_name = os.path.basename(filepath)
-    new_filepath = os.path.join(output_dir, file_name)
-    attempt = 0
-    while attempt < 50:  # Max number of rename attempts = 50
-        try:
-            os.rename(filepath, new_filepath)
-            cp.green(f"Moved file to {os.path.relpath(new_filepath)}.")
-            return new_filepath
-        except PermissionError as e:
-            cp.yellow(e)
-            attempt += 1
-            sleep(1)  # Wait 1 second before retrying
-        except FileExistsError:
-            if attempt == 0:
-                print("Incrementing filename...", end="")
-            else:
-                print(".", end="")
-            print()
-            new_filepath = increment_filename(new_filepath)
-            attempt += 1
-        except FileNotFoundError as e:
-            # This probably means the file was already moved by another process
-            # (Perhaps another instance of this script is running?)
-            cp.red(e)
-            return False  # File not found, no need to retry
-        except Exception as e:
-            cp.red("Unexpected exception for " + filepath)
-            cp.red(f"Failed to move {filepath} to {new_filepath}.")
-            cp.red(e)
-            print_exc()
-            return False
-
-    # If all rename attempts failed, handle the error
-    cp.red(f"Failed to move file to the reject directory: {filepath}")
-    return False
-
-
-# Try to rename file, return True if successful, False if not
-def try_rename(src_path, dst_path, retries=5, delay=2):
-    """Rename a file, retrying on transient errors (e.g. OneDrive sync locks)."""
-    for attempt in range(retries):
-        try:
-            os.rename(src_path, dst_path)
-            return True
-        except FileExistsError:
-            return False
-        except (FileNotFoundError, PermissionError, OSError) as e:
-            if attempt < retries - 1:
-                cp.yellow(
-                    f"Rename attempt {attempt + 1}/{retries} failed: {e}. Retrying in {delay}s..."
-                )
-                sleep(delay)
-            else:
-                cp.red(f"Failed to rename file after {retries} attempts: {e}")
-                raise
-    return False

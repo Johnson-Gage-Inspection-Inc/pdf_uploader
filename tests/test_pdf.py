@@ -36,30 +36,26 @@ class TestPdfNext(unittest.TestCase):
 class TestIncrementFilename(unittest.TestCase):
     """Test the increment_filename function."""
 
-    @patch("app.pdf.sleep")
-    def test_increment_new_file(self, mock_sleep):
-        from app.pdf import increment_filename
+    def test_increment_new_file(self):
+        from app.file_ops import increment_filename
 
         result = increment_filename("/path/to/file.pdf")
         self.assertEqual(result, "/path/to/file (1).pdf")
 
-    @patch("app.pdf.sleep")
-    def test_increment_already_incremented(self, mock_sleep):
-        from app.pdf import increment_filename
+    def test_increment_already_incremented(self):
+        from app.file_ops import increment_filename
 
         result = increment_filename("/path/to/file (1).pdf")
         self.assertEqual(result, "/path/to/file (2).pdf")
 
-    @patch("app.pdf.sleep")
-    def test_increment_high_number(self, mock_sleep):
-        from app.pdf import increment_filename
+    def test_increment_high_number(self):
+        from app.file_ops import increment_filename
 
         result = increment_filename("/path/to/file (50).pdf")
         self.assertEqual(result, "/path/to/file (51).pdf")
 
-    @patch("app.pdf.sleep")
-    def test_increment_at_99(self, mock_sleep):
-        from app.pdf import increment_filename
+    def test_increment_at_99(self):
+        from app.file_ops import increment_filename
 
         result = increment_filename("/path/to/file (99).pdf")
         self.assertEqual(result, "/path/to/file (100).pdf")
@@ -70,7 +66,7 @@ class TestTryRename(unittest.TestCase):
 
     @patch("os.rename")
     def test_try_rename_success(self, mock_rename):
-        from app.pdf import try_rename
+        from app.file_ops import try_rename
 
         result = try_rename("/src/file.pdf", "/dst/file.pdf")
         self.assertTrue(result)
@@ -78,23 +74,23 @@ class TestTryRename(unittest.TestCase):
 
     @patch("os.rename", side_effect=FileExistsError)
     def test_try_rename_file_exists(self, mock_rename):
-        from app.pdf import try_rename
+        from app.file_ops import try_rename
 
         result = try_rename("/src/file.pdf", "/dst/file.pdf")
         self.assertFalse(result)
 
-    @patch("app.pdf.cp")
+    @patch("app.file_ops.cp")
     @patch("os.rename", side_effect=FileNotFoundError)
     def test_try_rename_file_not_found_raises(self, mock_rename, mock_cp):
-        from app.pdf import try_rename
+        from app.file_ops import try_rename
 
         with self.assertRaises(FileNotFoundError):
             try_rename("/src/file.pdf", "/dst/file.pdf", retries=2, delay=0)
 
-    @patch("app.pdf.cp")
+    @patch("app.file_ops.cp")
     @patch("os.rename", side_effect=PermissionError("access denied"))
     def test_try_rename_other_error(self, mock_rename, mock_cp):
-        from app.pdf import try_rename
+        from app.file_ops import try_rename
 
         # PermissionError now retries and eventually raises after all attempts
         with self.assertRaises(PermissionError):
@@ -145,8 +141,8 @@ class TestWorkorders(unittest.TestCase):
         from app.pdf import workorders
 
         result = workorders("/path/to/56561-123456.pdf")
-        self.assertIsInstance(result, list)
-        self.assertEqual(result, ["56561-123456"])
+        self.assertIsInstance(result, dict)
+        self.assertEqual(result, {"56561-123456": set()})
         mock_extract.assert_not_called()
 
     @patch("app.pdf.extract")
@@ -203,38 +199,41 @@ class TestWorkorders(unittest.TestCase):
 class TestMoveFile(unittest.TestCase):
     """Test the move_file function."""
 
-    @patch("app.pdf.cp")
+    @patch("app.file_ops.cp")
     @patch("os.rename")
     def test_move_file_success(self, mock_rename, mock_cp):
-        from app.pdf import move_file
+        from app.file_ops import move_file
 
-        result = move_file("/src/file.pdf", "/dst")
+        path = move_file("/src/file.pdf", "/dst")
         expected_dst = os.path.join("/dst", "file.pdf")
         mock_rename.assert_called_once_with("/src/file.pdf", expected_dst)
-        self.assertEqual(result, expected_dst)
+        self.assertEqual(path, expected_dst)
+        assert path != "/src/file.pdf"
 
-    @patch("app.pdf.sleep")
-    @patch("app.pdf.cp")
+    @patch("app.file_ops.sleep")
+    @patch("app.file_ops.cp")
     @patch("os.rename", side_effect=FileNotFoundError("not found"))
     def test_move_file_not_found(self, mock_rename, mock_cp, mock_sleep):
-        from app.pdf import move_file
+        from app.file_ops import move_file
 
-        result = move_file("/src/file.pdf", "/dst")
-        self.assertFalse(result)
+        path = move_file("/src/file.pdf", "/dst")
+        self.assertEqual(path, "/src/file.pdf")
+        assert path == "/src/file.pdf"
 
-    @patch("app.pdf.increment_filename", return_value="/dst/file (1).pdf")
-    @patch("app.pdf.sleep")
-    @patch("app.pdf.cp")
+    @patch("app.file_ops.increment_filename", return_value="/dst/file (1).pdf")
+    @patch("app.file_ops.sleep")
+    @patch("app.file_ops.cp")
     @patch("builtins.print")
     @patch("os.rename")
     def test_move_file_file_exists_then_succeeds(
         self, mock_rename, mock_print, mock_cp, mock_sleep, mock_increment
     ):
-        from app.pdf import move_file
+        from app.file_ops import move_file
 
         mock_rename.side_effect = [FileExistsError, None]
-        result = move_file("/src/file.pdf", "/dst")
-        self.assertEqual(result, "/dst/file (1).pdf")
+        path = move_file("/src/file.pdf", "/dst")
+        self.assertEqual(path, "/dst/file (1).pdf")
+        assert path != "/src/file.pdf"
 
 
 class TestExtract(unittest.TestCase):

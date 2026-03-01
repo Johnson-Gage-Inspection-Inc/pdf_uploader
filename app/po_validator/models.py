@@ -1,9 +1,53 @@
 """Pydantic models for PO extraction and validation results."""
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+
+@dataclass
+class WorkItemData:
+    """Normalized representation of a Qualer SDK work item.
+
+    Wrapping SDK models with getattr() into this dataclass eliminates
+    scattered defensive attribute access throughout the validation code.
+    """
+
+    work_item_id: int
+    serial_number: str
+    asset_name: str
+    service_charge: float | None
+    service_total: float | None
+
+    @classmethod
+    def from_sdk_model(cls, wi: object) -> "WorkItemData":
+        return cls(
+            work_item_id=getattr(wi, "work_item_id", 0) or 0,
+            serial_number=getattr(wi, "serial_number", "") or "",
+            asset_name=(
+                getattr(wi, "asset_name", "")
+                or getattr(wi, "asset_description", "")
+                or ""
+            ),
+            service_charge=getattr(wi, "service_charge", None),
+            service_total=getattr(wi, "service_total", None),
+        )
+
+
+@dataclass(order=True)
+class PriceMatchCandidate:
+    """A candidate price match between a work item and a PO line item.
+
+    Sortable by price_diff (smallest difference first).
+    """
+
+    price_diff: float
+    wi_idx: int
+    po_idx: int
+    expected_price: float
+    po_price: float
 
 
 class POLineItem(BaseModel):

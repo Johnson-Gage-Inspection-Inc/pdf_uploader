@@ -152,8 +152,8 @@ class TestUpload(unittest.TestCase):
         self.assertFalse(result)
 
     @patch("app.api.upload_documents_post_2.sync_detailed")
-    @patch("app.api.pdf.try_rename", return_value=True)
-    @patch("app.api.pdf.increment_filename", return_value="/path/to/file (1).pdf")
+    @patch("app.api.try_rename", return_value=True)
+    @patch("app.api.increment_filename", return_value="/path/to/file (1).pdf")
     @patch("app.api.cp")
     @patch("app.api.path.exists", return_value=True)
     @patch("builtins.open", MagicMock())

@@ -4,7 +4,7 @@ from os import path
 import traceback
 import httpx
 import app.color_print as cp
-import app.pdf as pdf
+from app.file_ops import increment_filename, try_rename
 from app.connectivity import check_connectivity
 from qualer_sdk.api.service_orders import get_work_orders
 from qualer_sdk.api.service_orders import get_work_order as _sdk_get_work_order
@@ -166,8 +166,8 @@ def upload(
             renamed = False
             candidate = filepath
             for _ in range(50):
-                new_filename = pdf.increment_filename(candidate)
-                if pdf.try_rename(filepath, new_filename):
+                new_filename = increment_filename(candidate)
+                if try_rename(filepath, new_filename):
                     filepath = new_filename
                     renamed = True
                     break
@@ -185,7 +185,7 @@ def upload(
             if attempts > 0:
                 cp.white("Retrying upload...")
             try:
-                r = upload_documents_post_2.sync_detailed(
+                response = upload_documents_post_2.sync_detailed(
                     service_order_id=serviceOrderId,
                     client=make_qualer_client(),
                     files=[upload_file],
@@ -198,29 +198,29 @@ def upload(
                 attempts += 1
                 continue
 
-            if r.status_code == 200:
+            if response.status_code == 200:
                 cp.green("Upload successful!")
                 return True, filepath
 
             error_message = ""
             try:
-                response_data = json.loads(r.content)
+                response_data = json.loads(response.content)
                 error_message = response_data.get("Message", "")
             except Exception as e:
                 handle_exception(e)
 
             if (
-                r.status_code == 400
+                response.status_code == 400
                 and error_message
                 == "This document version is locked and cannot be overwritten."
             ):
                 cp.yellow(error_message)
                 attempts += 1
                 # No return, so that we can try again after the file is renamed.
-            else:  # if r.status_code != 200
+            else:  # if response.status_code != 200
                 cp.red(ERROR_FLAG)
-                cp.red(f"STATUS CODE: {r.status_code}")
-                cp.red(f"RESPONSE: {r.content.decode()}")
+                cp.red(f"STATUS CODE: {response.status_code}")
+                cp.red(f"RESPONSE: {response.content.decode()}")
                 return False, filepath
 
     # All retry attempts exhausted
