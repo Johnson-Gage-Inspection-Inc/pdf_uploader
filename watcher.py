@@ -225,9 +225,13 @@ def initialize():
 
 def launch_cli():
     """Run in CLI mode (original behavior)."""
-    from app.auth import ensure_authenticated
+    from app.auth import ensure_authenticated, AuthenticationError
 
-    ensure_authenticated()
+    try:
+        ensure_authenticated()
+    except AuthenticationError as exc:
+        cp.red(f"Authentication failed: {exc}")
+        sys.exit(1)
     check_connectivity()
 
     threads = []
