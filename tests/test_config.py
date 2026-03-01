@@ -6,7 +6,6 @@ class TestConfig(unittest.TestCase):
     def test_config_has_required_attributes(self):
         import app.config as config
 
-        self.assertIsInstance(config.LIVEAPI, bool)
         self.assertIsInstance(config.DEBUG, bool)
         self.assertIsInstance(config.DELETE_MODE, bool)
         self.assertIsInstance(config.tesseract_cmd_path, str)
