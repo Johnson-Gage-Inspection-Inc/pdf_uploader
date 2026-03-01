@@ -9,7 +9,6 @@ import app.pdf as pdf
 from app.file_ops import increment_filename, move_file, try_rename
 from app.config import (
     DEBUG,
-    LIVEAPI,
     LOG_FILE,
 )
 from app.config_manager import WatchedFolder
@@ -540,7 +539,3 @@ def _run_po_validation(
             logging.debug(traceback.format_exc())
 
     return last_result
-
-
-if not LIVEAPI:
-    cp.yellow("Using staging API")

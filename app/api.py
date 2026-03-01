@@ -185,7 +185,7 @@ def upload(
             if attempts > 0:
                 cp.white("Retrying upload...")
             try:
-                r = upload_documents_post_2.sync_detailed(
+                response = upload_documents_post_2.sync_detailed(
                     service_order_id=serviceOrderId,
                     client=make_qualer_client(),
                     files=[upload_file],
@@ -198,29 +198,29 @@ def upload(
                 attempts += 1
                 continue
 
-            if r.status_code == 200:
+            if response.status_code == 200:
                 cp.green("Upload successful!")
                 return True, filepath
 
             error_message = ""
             try:
-                response_data = json.loads(r.content)
+                response_data = json.loads(response.content)
                 error_message = response_data.get("Message", "")
             except Exception as e:
                 handle_exception(e)
 
             if (
-                r.status_code == 400
+                response.status_code == 400
                 and error_message
                 == "This document version is locked and cannot be overwritten."
             ):
                 cp.yellow(error_message)
                 attempts += 1
                 # No return, so that we can try again after the file is renamed.
-            else:  # if r.status_code != 200
+            else:  # if response.status_code != 200
                 cp.red(ERROR_FLAG)
-                cp.red(f"STATUS CODE: {r.status_code}")
-                cp.red(f"RESPONSE: {r.content.decode()}")
+                cp.red(f"STATUS CODE: {response.status_code}")
+                cp.red(f"RESPONSE: {response.content.decode()}")
                 return False, filepath
 
     # All retry attempts exhausted
