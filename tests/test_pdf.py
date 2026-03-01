@@ -83,20 +83,22 @@ class TestTryRename(unittest.TestCase):
         result = try_rename("/src/file.pdf", "/dst/file.pdf")
         self.assertFalse(result)
 
+    @patch("app.pdf.cp")
     @patch("os.rename", side_effect=FileNotFoundError)
-    def test_try_rename_file_not_found_raises(self, mock_rename):
+    def test_try_rename_file_not_found_raises(self, mock_rename, mock_cp):
         from app.pdf import try_rename
 
         with self.assertRaises(FileNotFoundError):
-            try_rename("/src/file.pdf", "/dst/file.pdf")
+            try_rename("/src/file.pdf", "/dst/file.pdf", retries=2, delay=0)
 
     @patch("app.pdf.cp")
     @patch("os.rename", side_effect=PermissionError("access denied"))
     def test_try_rename_other_error(self, mock_rename, mock_cp):
         from app.pdf import try_rename
 
-        result = try_rename("/src/file.pdf", "/dst/file.pdf")
-        self.assertFalse(result)
+        # PermissionError now retries and eventually raises after all attempts
+        with self.assertRaises(PermissionError):
+            try_rename("/src/file.pdf", "/dst/file.pdf", retries=2, delay=0)
 
 
 class TestWoNumFormat(unittest.TestCase):
