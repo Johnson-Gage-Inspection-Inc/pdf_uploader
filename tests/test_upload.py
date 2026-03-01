@@ -419,6 +419,68 @@ class TestProcessFileClaimByMove(unittest.TestCase):
             # Original file should still be there (wasn't moved)
             self.assertTrue(os.path.exists(pdf_path))
 
+    def test_claim_retries_on_permission_error_then_succeeds(self):
+        """PermissionError should be retried; processing continues after lock releases."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, "locked.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-test")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+
+            original_rename = os.rename
+            call_count = {"n": 0}
+
+            def flaky_rename(src, dst):
+                call_count["n"] += 1
+                if call_count["n"] <= 2:
+                    raise PermissionError("file locked")
+                return original_rename(src, dst)
+
+            with patch("upload.os.rename", side_effect=flaky_rename), patch(
+                "upload.os.makedirs"
+            ), patch("upload.handle_po_upload"), patch(
+                "upload.pdf.workorders", return_value=False
+            ), patch(
+                "upload.reorient_pdf_for_workorders", return_value=False
+            ), patch(
+                "upload.pdf.move_file"
+            ), patch(
+                "upload._emit_event"
+            ), patch(
+                "upload.os.path.isfile", return_value=True
+            ), patch(
+                "time.sleep"
+            ):
+                process_file(pdf_path, params)
+
+            # rename should have been called 3 times (1 initial + 2 retries)
+            self.assertEqual(call_count["n"], 3)
+
+    def test_claim_gives_up_after_max_retries(self):
+        """After 6 PermissionError attempts, process_file should return False."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, "stuck.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-test")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+
+            with patch(
+                "upload.os.rename", side_effect=PermissionError("locked")
+            ), patch("upload.os.makedirs"), patch(
+                "upload.os.path.isfile", return_value=True
+            ), patch(
+                "time.sleep"
+            ):
+                result = process_file(pdf_path, params)
+
+            self.assertFalse(result)
+
 
 if __name__ == "__main__":
     unittest.main()

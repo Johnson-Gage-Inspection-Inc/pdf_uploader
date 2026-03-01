@@ -243,6 +243,36 @@ def process_file(filepath: str, qualer_parameters: tuple):
             "-- already in _processing/ directory."
         )
         return False
+    except PermissionError:
+        # File is still locked (e.g. OneDrive sync, antivirus scan).
+        # Retry a few times before giving up.
+        import time as _time
+
+        claimed = False
+        for attempt in range(5):
+            _time.sleep(2)
+            try:
+                os.rename(filepath, claimed_path)
+                claimed = True
+                break
+            except PermissionError:
+                cp.yellow(
+                    f"File locked, retry {attempt + 2}/6: "
+                    f"{os.path.basename(filepath)}"
+                )
+            except (FileNotFoundError, FileExistsError):
+                # Another instance grabbed it while we were waiting
+                cp.yellow(
+                    f"Skipping '{os.path.basename(filepath)}' "
+                    "-- claimed by another instance during retry."
+                )
+                return False
+        if not claimed:
+            cp.red(
+                f"Could not claim '{os.path.basename(filepath)}' "
+                "after 6 attempts (file locked). Will retry on next event."
+            )
+            return False
 
     # From here on, work with the claimed copy
     filepath = claimed_path

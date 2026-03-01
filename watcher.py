@@ -42,12 +42,22 @@ class PDFFileHandler(FileSystemEventHandler):
     # Called when a file is created in the input directory
     def on_created(self, event):
         if self.wait_for_file_stability(event.src_path):
-            process_pdfs(self.parameters)
+            try:
+                process_pdfs(self.parameters)
+            except Exception:
+                import traceback
+
+                traceback.print_exc()
 
     # Called when a file is moved into the input directory or renamed
     def on_moved(self, event):
         if self.wait_for_file_stability(event.dest_path):
-            process_pdfs(self.parameters)
+            try:
+                process_pdfs(self.parameters)
+            except Exception:
+                import traceback
+
+                traceback.print_exc()
 
     def wait_for_file_stability(self, file_path):
         """
