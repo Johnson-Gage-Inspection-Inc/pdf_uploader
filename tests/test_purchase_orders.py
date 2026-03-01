@@ -128,9 +128,13 @@ class TestExtractPo(unittest.TestCase):
 
 class TestSaveAsZipFile(unittest.TestCase):
     def test_save_and_load_zip(self):
-        from app.PurchaseOrders import save_as_zip_file
+        from app.PurchaseOrders import save_as_zip_file, _so_to_wo
 
         test_data = {"PO100": ["SO1", "SO2"], "PO200": ["SO3"]}
+
+        # Ensure _so_to_wo is clean for this test
+        _so_to_wo.clear()
+        _so_to_wo[100] = "WO-100"
 
         with tempfile.NamedTemporaryFile(suffix=".json.gz", delete=False) as f:
             temp_path = f.name
@@ -141,8 +145,11 @@ class TestSaveAsZipFile(unittest.TestCase):
 
             with gzip.open(temp_path, "rb") as f:
                 loaded = json.loads(f.read().decode("utf-8"))
-            self.assertEqual(loaded, test_data)
+            # New format wraps po_lookup and so_to_wo together
+            self.assertEqual(loaded["po_lookup"], test_data)
+            self.assertEqual(loaded["so_to_wo"], {"100": "WO-100"})
         finally:
+            _so_to_wo.clear()
             os.unlink(temp_path)
 
 
@@ -175,6 +182,31 @@ class TestUpdatePONumbers(unittest.TestCase):
                 result = update_PO_numbers()
             self.assertEqual(result["PO100"], ["SO1"])
         finally:
+            os.unlink(temp_path)
+
+    @patch("app.PurchaseOrders.save_as_zip_file")
+    @patch("app.PurchaseOrders.api.get_service_orders", return_value=[])
+    @patch("app.PurchaseOrders.cp")
+    def test_new_format_restores_so_to_wo(self, mock_cp, mock_api, mock_save):
+        """Loading a new-format cache should populate _so_to_wo."""
+        from app.PurchaseOrders import update_PO_numbers, _so_to_wo, get_work_order_number
+
+        payload = {
+            "po_lookup": {"PO100": [999]},
+            "so_to_wo": {"999": "56561-083002"},
+        }
+        with tempfile.NamedTemporaryFile(suffix=".json.gz", delete=False) as f:
+            temp_path = f.name
+            f.write(gzip.compress(json.dumps(payload).encode("utf-8")))
+
+        _so_to_wo.clear()
+        try:
+            with patch("app.PurchaseOrders.PO_DICT_FILE", temp_path):
+                result = update_PO_numbers()
+            self.assertEqual(result["PO100"], [999])
+            self.assertEqual(get_work_order_number(999), "56561-083002")
+        finally:
+            _so_to_wo.clear()
             os.unlink(temp_path)
 
 

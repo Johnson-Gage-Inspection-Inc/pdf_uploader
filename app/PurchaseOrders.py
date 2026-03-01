@@ -102,7 +102,16 @@ def update_PO_numbers(
     # Read the compressed dictionary from the file
     try:
         with gzip.open(PO_DICT_FILE, "rb") as f:
-            lookup = json.loads(f.read().decode("utf-8"))
+            raw = json.loads(f.read().decode("utf-8"))
+        # New format: {"po_lookup": {...}, "so_to_wo": {...}}
+        # Old format: plain {PO: [SO_IDs]} dict (backward compat)
+        if isinstance(raw, dict) and "po_lookup" in raw:
+            lookup = raw["po_lookup"]
+            # Restore the SO -> WO cache (JSON keys are strings)
+            for so_str, wo in raw.get("so_to_wo", {}).items():
+                _so_to_wo[int(so_str)] = wo
+        else:
+            lookup = raw  # old format
         cp.green(f"Using PO dictionary file at: {PO_DICT_FILE}")
     except FileNotFoundError:
         cp.yellow(f"PO dictionary file not found: {PO_DICT_FILE}. Building from API...")
@@ -136,11 +145,17 @@ def update_PO_numbers(
 def save_as_zip_file(lookup: dict[str, list[Any]]):
     """Compress the dictionary and write to the file.
 
+    Persists both the PO lookup and the SO→WO mapping so that
+    custom order numbers survive across restarts.
+
     Args:
         lookup (dict): PO numbers and their corresponding service order IDs.
     """
+    # Convert int keys to strings for JSON serialisation
+    so_wo_serialisable = {str(k): v for k, v in _so_to_wo.items()}
+    payload = {"po_lookup": lookup, "so_to_wo": so_wo_serialisable}
     with gzip.open(PO_DICT_FILE, "wb") as file:
-        json_data = json.dumps(lookup).encode("utf-8")
+        json_data = json.dumps(payload).encode("utf-8")
         file.write(json_data)
 
 
