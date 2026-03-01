@@ -1,4 +1,4 @@
-from typing import Any, Sequence
+from typing import Any
 
 class Matrix:
     def __init__(

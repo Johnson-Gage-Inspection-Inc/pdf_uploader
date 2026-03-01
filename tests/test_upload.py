@@ -1,3 +1,4 @@
+import os
 import unittest
 from unittest.mock import patch, MagicMock
 import sys
@@ -36,6 +37,7 @@ from upload import fetch_SO_and_upload  # noqa: E402
 from upload import upload_by_po  # noqa: E402
 from upload import handle_po_upload  # noqa: E402
 from upload import _run_po_validation  # noqa: E402
+from upload import process_file, _PROCESSING_DIR_NAME  # noqa: E402
 
 
 class TestRenameFile(unittest.TestCase):
@@ -76,6 +78,21 @@ class TestUploadWithRename(unittest.TestCase):
     @patch("upload.api.upload")
     @patch("upload.api.get_service_order_document_list")
     @patch("upload.rename_file")
+    def test_upload_with_rename_private_flag(
+        self, mock_rename, mock_get_docs, mock_upload
+    ):
+        # ensure the private argument is forwarded
+        mock_get_docs.return_value = []
+        mock_upload.return_value = (True, "/path/to/file.pdf")
+
+        upload_with_rename("/path/to/file.pdf", 123, "DOC_TYPE", private=True)
+        mock_upload.assert_called_once()
+        _, kwargs = mock_upload.call_args
+        self.assertTrue(kwargs.get("private"))
+
+    @patch("upload.api.upload")
+    @patch("upload.api.get_service_order_document_list")
+    @patch("upload.rename_file")
     def test_upload_with_rename_conflict(self, mock_rename, mock_get_docs, mock_upload):
         mock_get_docs.return_value = ["file.pdf"]
         mock_rename.return_value = "/path/to/file_1.pdf"
@@ -95,14 +112,36 @@ class TestFetchSOAndUpload(unittest.TestCase):
         mock_get_so.return_value = 12345
         mock_upload.return_value = (True, "/path/to/file.pdf")
 
-        result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO123", "/path/to/file.pdf", "DOC_TYPE"
+        )
         self.assertTrue(result)
+
+    @patch("upload.upload_with_rename")
+    @patch("upload.api.getServiceOrderId")
+    @patch("os.path.isfile")
+    def test_fetch_so_and_upload_private_flag(
+        self, mock_isfile, mock_get_so, mock_upload
+    ):
+        mock_isfile.return_value = True
+        mock_get_so.return_value = 12345
+        mock_upload.return_value = (True, "/path/to/file.pdf")
+
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO123", "/path/to/file.pdf", "DOC_TYPE", private=True
+        )
+        self.assertIsNotNone(result)
+        mock_upload.assert_called_once()
+        args, kwargs = mock_upload.call_args
+        self.assertTrue(kwargs.get("private"))
 
     @patch("os.path.isfile")
     def test_fetch_so_and_upload_file_not_found(self, mock_isfile):
         mock_isfile.return_value = False
 
-        result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO123", "/path/to/file.pdf", "DOC_TYPE"
+        )
         self.assertFalse(result)
 
 
@@ -119,6 +158,18 @@ class TestUploadByPO(unittest.TestCase):
         )
         self.assertEqual(success, ["SO1", "SO2"])
         self.assertEqual(failed, [])
+
+    @patch("upload.upload_with_rename")
+    @patch("os.path.isfile")
+    def test_upload_by_po_private_flag(self, mock_isfile, mock_upload):
+        mock_isfile.return_value = True
+        mock_upload.return_value = (True, "/path/to/file.pdf")
+
+        po_dict = {"PO123": ["SO1"]}
+        upload_by_po("/path/to/file.pdf", "PO123", po_dict, "DOC_TYPE", private=True)
+        mock_upload.assert_called_once()
+        args, kwargs = mock_upload.call_args
+        self.assertTrue(kwargs.get("private"))
 
     def test_upload_by_po_not_found(self):
         po_dict = {}
@@ -138,8 +189,9 @@ class TestHandlePOUpload(unittest.TestCase):
         mock_update.return_value = {"PO123": ["SO1"]}
         mock_upload_po.return_value = (["SO1"], [], "/path/to/file.pdf")
 
-        result = handle_po_upload("/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf")
-        uploadResult, new_filepath = result
+        uploadResult, new_filepath, successSOs, failedSOs, val_result = (
+            handle_po_upload("/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf")
+        )
         self.assertTrue(uploadResult)
         self.assertEqual(new_filepath, "/path/to/file.pdf")
 
@@ -151,8 +203,8 @@ class TestHandlePOUpload(unittest.TestCase):
         mock_update.return_value = {"PO123": ["SO1"]}
         mock_upload_po.return_value = ([], ["SO1"], "/path/to/file.pdf")
 
-        uploadResult, new_filepath = handle_po_upload(
-            "/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf"
+        uploadResult, new_filepath, successSOs, failedSOs, val_result = (
+            handle_po_upload("/path/to/PO123.pdf", "DOC_TYPE", "PO123.pdf")
         )
         self.assertFalse(uploadResult)
         self.assertEqual(new_filepath, "/path/to/file.pdf")
@@ -239,13 +291,17 @@ class TestFetchSOAndUploadEdgeCases(unittest.TestCase):
     @patch("os.path.isfile", return_value=True)
     def test_fetch_so_no_service_order(self, mock_isfile, mock_get_so):
         """When service order is not found, should return False."""
-        result, filepath = fetch_SO_and_upload("WO999", "/path/to/file.pdf", "DOC_TYPE")
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO999", "/path/to/file.pdf", "DOC_TYPE"
+        )
         self.assertFalse(result)
 
     @patch("upload.api.getServiceOrderId", side_effect=FileNotFoundError)
     @patch("os.path.isfile", return_value=True)
     def test_fetch_so_exception(self, mock_isfile, mock_get_so):
-        result, filepath = fetch_SO_and_upload("WO123", "/path/to/file.pdf", "DOC_TYPE")
+        result, filepath, soid = fetch_SO_and_upload(
+            "WO123", "/path/to/file.pdf", "DOC_TYPE"
+        )
         self.assertFalse(result)
 
 
@@ -292,6 +348,138 @@ class TestRunPOValidation(unittest.TestCase):
         """When the PDF file does not exist, validation returns early."""
         _run_po_validation("/missing.pdf", "/missing.pdf", [123], "missing.pdf")
         mock_get_work_items.assert_not_called()
+
+
+class TestProcessFileClaimByMove(unittest.TestCase):
+    """Test the claim-by-move logic at the top of process_file."""
+
+    def test_claim_moves_file_to_processing_dir(self):
+        """process_file should move the file into _processing/ before doing work."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a test PDF
+            pdf_path = os.path.join(tmpdir, "test.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-test")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+
+            # Mock out everything after the claim so we can inspect the move
+            with patch("upload.handle_po_upload"), patch(
+                "upload.pdf.workorders", return_value=False
+            ), patch("upload.reorient_pdf_for_workorders", return_value=False), patch(
+                "upload.pdf.move_file"
+            ), patch(
+                "upload._emit_event"
+            ):
+                process_file(pdf_path, params)
+
+            # Original file should no longer exist (it was moved into _processing)
+            self.assertFalse(os.path.exists(pdf_path))
+
+    def test_claim_skips_when_file_already_gone(self):
+        """process_file should return False if file vanishes before claim."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, "vanished.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-test")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+
+            # Simulate another instance grabbing the file
+            os.remove(pdf_path)
+
+            # process_file should handle this gracefully
+            with self.assertRaises(FileNotFoundError):
+                process_file(pdf_path, params)
+
+    def test_claim_skips_when_already_in_processing(self):
+        """If a file with the same name is already in _processing/, skip."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            # Create a file already in _processing
+            processing_dir = os.path.join(tmpdir, _PROCESSING_DIR_NAME)
+            os.makedirs(processing_dir)
+            claimed = os.path.join(processing_dir, "dup.pdf")
+            with open(claimed, "wb") as f:
+                f.write(b"%PDF-old")
+
+            # Now create a new file with the same name in input dir
+            pdf_path = os.path.join(tmpdir, "dup.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-new")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+            result = process_file(pdf_path, params)
+            self.assertFalse(result)
+            # Original file should still be there (wasn't moved)
+            self.assertTrue(os.path.exists(pdf_path))
+
+    def test_claim_retries_on_permission_error_then_succeeds(self):
+        """PermissionError should be retried; processing continues after lock releases."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, "locked.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-test")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+
+            original_rename = os.rename
+            call_count = {"n": 0}
+
+            def flaky_rename(src, dst):
+                call_count["n"] += 1
+                if call_count["n"] <= 2:
+                    raise PermissionError("file locked")
+                return original_rename(src, dst)
+
+            with patch("upload.os.rename", side_effect=flaky_rename), patch(
+                "upload.os.makedirs"
+            ), patch("upload.handle_po_upload"), patch(
+                "upload.pdf.workorders", return_value=False
+            ), patch(
+                "upload.reorient_pdf_for_workorders", return_value=False
+            ), patch(
+                "upload.pdf.move_file"
+            ), patch(
+                "upload._emit_event"
+            ), patch(
+                "upload.os.path.isfile", return_value=True
+            ), patch(
+                "time.sleep"
+            ):
+                process_file(pdf_path, params)
+
+            # rename should have been called 3 times (1 initial + 2 retries)
+            self.assertEqual(call_count["n"], 3)
+
+    def test_claim_gives_up_after_max_retries(self):
+        """After 6 PermissionError attempts, process_file should return False."""
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pdf_path = os.path.join(tmpdir, "stuck.pdf")
+            with open(pdf_path, "wb") as f:
+                f.write(b"%PDF-test")
+
+            params = (tmpdir, tmpdir, tmpdir, "general", False)
+
+            with patch(
+                "upload.os.rename", side_effect=PermissionError("locked")
+            ), patch("upload.os.makedirs"), patch(
+                "upload.os.path.isfile", return_value=True
+            ), patch(
+                "time.sleep"
+            ):
+                result = process_file(pdf_path, params)
+
+            self.assertFalse(result)
 
 
 if __name__ == "__main__":

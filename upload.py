@@ -29,6 +29,10 @@ from app.orientation import reorient_pdf_for_workorders
 from app.po_validator import validate_and_annotate
 import logging
 
+# Subdirectory name used to claim files before processing.
+# Files are moved here atomically so that only one instance processes each file.
+_PROCESSING_DIR_NAME = "_processing"
+
 try:
     logging.basicConfig(
         level=logging.DEBUG,
@@ -77,9 +81,13 @@ def rename_file(filepath: str, doc_list: list) -> str:
 
 
 def upload_with_rename(
-    filepath: str, serviceOrderId: int, doc_type: str
+    filepath: str, serviceOrderId: int, doc_type: str, private: bool = False
 ) -> Tuple[bool, str]:
-    """Upload file to Qualer endpoint, and resolve name conflicts"""
+    """Upload file to Qualer endpoint, and resolve name conflicts.
+
+    The ``private`` flag is forwarded to :func:`app.api.upload` so that
+    callers (e.g. annotated PO uploads) can request a private document.
+    """
     file_name = os.path.basename(filepath)  # Get file name
     doc_list = api.get_service_order_document_list(
         serviceOrderId
@@ -94,7 +102,9 @@ def upload_with_rename(
             cp.yellow("debug mode, no uploads")
             # Skip actual upload in debug mode to avoid network/API calls
             return False, new_filepath
-        uploadResult, new_filepath = api.upload(new_filepath, serviceOrderId, doc_type)
+        uploadResult, new_filepath = api.upload(
+            new_filepath, serviceOrderId, doc_type, private=private
+        )
     except FileExistsError:
         cp.red(f"File exists in Qualer: {file_name}")
         uploadResult = False
@@ -102,29 +112,37 @@ def upload_with_rename(
 
 
 # Get service order ID and upload file to Qualer endpoint
-def fetch_SO_and_upload(workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str):
+def fetch_SO_and_upload(
+    workorder: str, filepath: str, QUALER_DOCUMENT_TYPE: str, private: bool = False
+):
+    """Returns (uploadResult, new_filepath, serviceOrderId)."""
     try:
         if not os.path.isfile(filepath):  # See if filepath is valid
-            return False, filepath
+            return False, filepath, None
         if serviceOrderId := api.getServiceOrderId(workorder):
-            return upload_with_rename(
-                filepath, serviceOrderId, QUALER_DOCUMENT_TYPE
-            )  # return uploadResult, new_filepath
+            uploadResult, new_filepath = upload_with_rename(
+                filepath, serviceOrderId, QUALER_DOCUMENT_TYPE, private=private
+            )
+            return uploadResult, new_filepath, serviceOrderId
         else:
             cp.red(f"Service order not found for work order: {workorder}")
-            return False, filepath
+            return False, filepath, None
     except FileNotFoundError as e:
         cp.red(f"Error: {filepath} not found.\n{e}")
-        return False, filepath
+        return False, filepath, None
     except Exception as e:
         cp.red(f"Error in fetch_SO_and_upload(): {e}\nFile: {filepath}")
         traceback.print_exc()
-        return False, filepath
+        return False, filepath, None
 
 
 # Get service order ID and upload file to Qualer endpoint
 def upload_by_po(
-    filepath: str, po: str, po_dict: dict, QUALER_DOCUMENT_TYPE: str
+    filepath: str,
+    po: str,
+    po_dict: dict,
+    QUALER_DOCUMENT_TYPE: str,
+    private: bool = False,
 ) -> Tuple[list, list, str]:
     if po not in po_dict:
         cp.yellow(f"PO# {po} not found in Qualer.")
@@ -140,7 +158,7 @@ def upload_by_po(
             if not os.path.isfile(filepath):
                 return [], serviceOrderIds, filepath
             uploadResult, filepath = upload_with_rename(
-                filepath, serviceOrderId, QUALER_DOCUMENT_TYPE
+                filepath, serviceOrderId, QUALER_DOCUMENT_TYPE, private=private
             )  # return uploadResult, new_filepath
             if uploadResult:
                 successSOs.append(serviceOrderId)
@@ -159,12 +177,118 @@ def upload_by_po(
     return successSOs, failedSOs, filepath
 
 
+def _emit_event(
+    filepath,
+    filename,
+    success,
+    work_orders,
+    service_order_ids,
+    error_message,
+    validation_result,
+    folder_label,
+):
+    """Emit a ProcessingEvent to the GUI event bus (no-op in CLI mode)."""
+    try:
+        from app.event_bus import get_bus, ProcessingEvent
+
+        bus = get_bus()
+        if bus:
+            event = ProcessingEvent(
+                filepath=filepath,
+                filename=filename,
+                timestamp=datetime.now(),
+                success=success,
+                work_orders=list(work_orders),
+                service_order_ids=list(service_order_ids),
+                error_message=error_message,
+                validation_result=validation_result,
+                folder_label=folder_label,
+            )
+            bus.file_processing_finished.emit(event)
+    except Exception:
+        pass  # Never let event emission break the upload flow
+
+
+def _cleanup_processing_dir(processing_dir: str) -> None:
+    """Remove the _processing/ subdirectory if it's empty."""
+    try:
+        os.rmdir(processing_dir)  # only succeeds when empty
+    except (OSError, FileNotFoundError):
+        pass
+
+
 # Main function
 def process_file(filepath: str, qualer_parameters: tuple):
     if not os.path.isfile(filepath):
         raise FileNotFoundError(f"File not found: {filepath}")
 
+    # --- Claim-by-move: atomically move the file into a _processing/ subdirectory
+    # so that no other instance of this program can process the same file.
+    input_dir = os.path.dirname(filepath)
+    processing_dir = os.path.join(input_dir, _PROCESSING_DIR_NAME)
+    os.makedirs(processing_dir, exist_ok=True)
+    claimed_path = os.path.join(processing_dir, os.path.basename(filepath))
+    try:
+        os.rename(filepath, claimed_path)
+    except FileNotFoundError:
+        cp.yellow(
+            f"Skipping '{os.path.basename(filepath)}' "
+            "-- already claimed by another instance."
+        )
+        return False
+    except FileExistsError:
+        # A file with the same name is already being processed
+        cp.yellow(
+            f"Skipping '{os.path.basename(filepath)}' "
+            "-- already in _processing/ directory."
+        )
+        return False
+    except PermissionError:
+        # File is still locked (e.g. OneDrive sync, antivirus scan).
+        # Retry a few times before giving up.
+        import time as _time
+
+        claimed = False
+        for attempt in range(5):
+            _time.sleep(2)
+            try:
+                os.rename(filepath, claimed_path)
+                claimed = True
+                break
+            except PermissionError:
+                cp.yellow(
+                    f"File locked, retry {attempt + 2}/6: "
+                    f"{os.path.basename(filepath)}"
+                )
+            except (FileNotFoundError, FileExistsError):
+                # Another instance grabbed it while we were waiting
+                cp.yellow(
+                    f"Skipping '{os.path.basename(filepath)}' "
+                    "-- claimed by another instance during retry."
+                )
+                return False
+        if not claimed:
+            cp.red(
+                f"Could not claim '{os.path.basename(filepath)}' "
+                "after 6 attempts (file locked). Will retry on next event."
+            )
+            return False
+
+    # From here on, work with the claimed copy
+    filepath = claimed_path
+
     cp.blue(f"Processing file: {filepath}")
+
+    # Emit processing-started signal for GUI
+    try:
+        from app.event_bus import get_bus
+
+        bus = get_bus()
+        if bus:
+            bus.file_processing_started.emit(filepath)
+    except Exception:
+        pass
+
     # unpack parameters
     INPUT_DIR, OUTPUT_DIR, REJECT_DIR, QUALER_DOCUMENT_TYPE = qualer_parameters[:4]
     VALIDATE_PO = qualer_parameters[4] if len(qualer_parameters) > 4 else False
@@ -174,19 +298,43 @@ def process_file(filepath: str, qualer_parameters: tuple):
     total += 1
     filename = os.path.basename(filepath)
     uploadResult = False
+    service_order_ids = []
+    work_orders = []
+    validation_result = None
 
     # Check for PO in file name
     if filename.startswith("PO"):
-        uploadResult, new_filepath = handle_po_upload(
-            filepath, QUALER_DOCUMENT_TYPE, filename, VALIDATE_PO
+        uploadResult, new_filepath, successSOs, failedSOs, validation_result = (
+            handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, VALIDATE_PO)
         )
+        service_order_ids = successSOs + failedSOs
+        # Look up WO numbers for the SO IDs from the PO dict cache
+        from app.PurchaseOrders import get_work_order_number
 
-    if not uploadResult:
+        for so_id in service_order_ids:
+            wo = get_work_order_number(so_id)
+            if wo:
+                work_orders.append(wo)
+
+    elif not uploadResult:
         # Check for work orders in file body or file name
         workorders_result: dict | list | bool = pdf.workorders(filepath)
         if not workorders_result:
             workorders_result = reorient_pdf_for_workorders(filepath, REJECT_DIR)
         if not workorders_result:
+            _emit_event(
+                filepath,
+                filename,
+                False,
+                [],
+                [],
+                "No work orders found",
+                None,
+                INPUT_DIR,
+            )
+            # Move unclaimed file back so it stays visible (or to reject)
+            pdf.move_file(filepath, REJECT_DIR)
+            _cleanup_processing_dir(processing_dir)
             return False
 
         # if work orders found in filename, upload file to Qualer endpoint(s)
@@ -197,9 +345,12 @@ def process_file(filepath: str, qualer_parameters: tuple):
             for (
                 workorder
             ) in workorders_result:  # loop through work orders list and upload
-                uploadResult, new_filepath = fetch_SO_and_upload(
+                uploadResult, new_filepath, soId = fetch_SO_and_upload(
                     workorder, filepath, QUALER_DOCUMENT_TYPE
                 )  # upload file
+                work_orders.append(workorder)
+                if soId:
+                    service_order_ids.append(soId)
 
         elif isinstance(workorders_result, dict):
             if (
@@ -211,9 +362,12 @@ def process_file(filepath: str, qualer_parameters: tuple):
                 cp.green(
                     f"One (1) work order found within file: {workorder}"
                 )  # Print the work order number
-                uploadResult, new_filepath = fetch_SO_and_upload(
+                uploadResult, new_filepath, soId = fetch_SO_and_upload(
                     workorder, filepath, QUALER_DOCUMENT_TYPE
                 )  # Upload the file
+                work_orders.append(workorder)
+                if soId:
+                    service_order_ids.append(soId)
 
             else:  # For multiple work orders,
                 cp.green(
@@ -232,9 +386,12 @@ def process_file(filepath: str, qualer_parameters: tuple):
                     pdf.create_child_pdf(
                         filepath, pg_nums, child_pdf_path
                     )  # extract relevant pages from PDF, and
-                    uploadResult, new_child_pdf_path = fetch_SO_and_upload(
+                    uploadResult, new_child_pdf_path, soId = fetch_SO_and_upload(
                         workorder, child_pdf_path, QUALER_DOCUMENT_TYPE
                     )  # upload extracted pages
+                    work_orders.append(workorder)
+                    if soId:
+                        service_order_ids.append(soId)
                     child_pdf_path = (
                         new_child_pdf_path if new_child_pdf_path else child_pdf_path
                     )  # if the file was renamed, update the filepath
@@ -252,6 +409,17 @@ def process_file(filepath: str, qualer_parameters: tuple):
     if not uploadResult and os.path.isfile(filepath):
         cp.red("Failed to upload " + filepath + ". Moving to reject directory...")
         pdf.move_file(filepath, REJECT_DIR)
+        _emit_event(
+            filepath,
+            filename,
+            False,
+            work_orders,
+            service_order_ids,
+            "Upload failed",
+            validation_result,
+            INPUT_DIR,
+        )
+        _cleanup_processing_dir(processing_dir)
         return False
 
     # If the file was renamed, update the filepath
@@ -283,6 +451,18 @@ def process_file(filepath: str, qualer_parameters: tuple):
         cp.yellow(f"Failed to remove file: {filepath} | {e}")
         logging.debug(traceback.format_exc())
 
+    _emit_event(
+        filepath,
+        filename,
+        True,
+        work_orders,
+        service_order_ids,
+        "",
+        validation_result,
+        INPUT_DIR,
+    )
+    _cleanup_processing_dir(processing_dir)
+
 
 def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, validate_po=False):
     po = extract_po(filename)
@@ -292,15 +472,18 @@ def handle_po_upload(filepath, QUALER_DOCUMENT_TYPE, filename, validate_po=False
         filepath, po, po_dict, QUALER_DOCUMENT_TYPE
     )
     uploadResult = False
+    validation_result = None
     if successSOs:
         cp.green(f"{filename} uploaded successfully to SOs: {successSOs}")
         uploadResult = True
         # Run PO validation if enabled for this folder
         if validate_po:
-            _run_po_validation(filepath, new_filepath, successSOs, filename)
+            validation_result = _run_po_validation(
+                filepath, new_filepath, successSOs, filename
+            )
     if failedSOs:
         cp.red(f"{filename} failed to upload to SOs: {failedSOs}")
-    return uploadResult, new_filepath
+    return uploadResult, new_filepath, successSOs, failedSOs, validation_result
 
 
 def _run_po_validation(
@@ -308,7 +491,7 @@ def _run_po_validation(
     current_filepath: str,
     service_order_ids: list,
     filename: str,
-) -> None:
+):
     """Validate a PO PDF against Qualer work items and upload annotated version.
 
     This runs after a successful PO upload. It extracts line items from the PDF,
@@ -316,6 +499,8 @@ def _run_po_validation(
     and uploads the annotated version back to Qualer.
 
     Failures here do NOT block the main upload flow.
+
+    Returns the last ValidationResult (or None if validation was skipped/failed).
     """
     # Read the PDF bytes (use the current filepath in case it was renamed)
     pdf_path = (
@@ -325,15 +510,16 @@ def _run_po_validation(
     )
     if not os.path.isfile(pdf_path):
         cp.yellow(f"PO validation skipped: file not found at {pdf_path}")
-        return
+        return None
 
     try:
         with open(pdf_path, "rb") as f:
             pdf_bytes = f.read()
     except Exception as e:
         cp.yellow(f"PO validation skipped: could not read {pdf_path}: {e}")
-        return
+        return None
 
+    last_result = None
     for service_order_id in service_order_ids:
         try:
             cp.blue(f"Running PO validation for SO# {service_order_id}...")
@@ -348,6 +534,7 @@ def _run_po_validation(
                 work_items=work_items,
                 document_name=filename,
             )
+            last_result = result
 
             status_msg = f"PO validation result: {result.status}"
             if result.status == "pass":
@@ -375,7 +562,9 @@ def _run_po_validation(
                     if os.path.exists(annotated_path):
                         os.remove(annotated_path)
                     os.rename(tmp_path, annotated_path)
-                    success, _ = api.upload(annotated_path, service_order_id, "general")
+                    success, _ = api.upload(
+                        annotated_path, service_order_id, "general", private=True
+                    )
                     if success:
                         cp.green(f"Annotated PO uploaded for SO# {service_order_id}")
                     else:
@@ -397,6 +586,8 @@ def _run_po_validation(
         except Exception as e:
             cp.yellow(f"PO validation failed for SO# {service_order_id}: {e}")
             logging.debug(traceback.format_exc())
+
+    return last_result
 
 
 if not LIVEAPI:

@@ -215,15 +215,21 @@ def move_file(filepath, output_dir) -> str | bool:
 
 
 # Try to rename file, return True if successful, False if not
-def try_rename(src_path, dst_path):
-    try:
-        os.rename(src_path, dst_path)
-        return True
-    except FileExistsError:
-        return False
-    except FileNotFoundError:
-        raise
-    except Exception as e:
-        cp.red(e)
-        cp.red(f"Failed to rename file: {e}")
-        return False
+def try_rename(src_path, dst_path, retries=5, delay=2):
+    """Rename a file, retrying on transient errors (e.g. OneDrive sync locks)."""
+    for attempt in range(retries):
+        try:
+            os.rename(src_path, dst_path)
+            return True
+        except FileExistsError:
+            return False
+        except (FileNotFoundError, PermissionError, OSError) as e:
+            if attempt < retries - 1:
+                cp.yellow(
+                    f"Rename attempt {attempt + 1}/{retries} failed: {e}. Retrying in {delay}s..."
+                )
+                sleep(delay)
+            else:
+                cp.red(f"Failed to rename file after {retries} attempts: {e}")
+                raise
+    return False

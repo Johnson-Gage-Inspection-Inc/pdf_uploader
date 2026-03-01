@@ -91,6 +91,38 @@ class TestGetServiceOrderId(unittest.TestCase):
         self.assertIsNone(result)
 
 
+class TestGetServiceOrder(unittest.TestCase):
+    @patch("app.api._sdk_get_work_order.sync")
+    @patch("app.api.cp")
+    def test_get_service_order_success(self, mock_cp, mock_sync):
+        from app.api import get_service_order
+
+        mock_so = MagicMock()
+        mock_so.custom_order_number = "56561-083002"
+        mock_sync.return_value = mock_so
+
+        result = get_service_order(1361263)
+        self.assertEqual(result.custom_order_number, "56561-083002")
+        mock_sync.assert_called_once()
+
+    @patch("app.api._sdk_get_work_order.sync")
+    @patch("app.api.cp")
+    def test_get_service_order_not_found(self, mock_cp, mock_sync):
+        from app.api import get_service_order
+
+        mock_sync.return_value = None
+        result = get_service_order(999999)
+        self.assertIsNone(result)
+
+    @patch("app.api._sdk_get_work_order.sync", side_effect=Exception("API error"))
+    @patch("app.api.cp")
+    def test_get_service_order_exception(self, mock_cp, mock_sync):
+        from app.api import get_service_order
+
+        result = get_service_order(123)
+        self.assertIsNone(result)
+
+
 class TestUpload(unittest.TestCase):
     @patch("app.api.upload_documents_post_2.sync_detailed")
     @patch("app.api.cp")
@@ -105,6 +137,11 @@ class TestUpload(unittest.TestCase):
 
         result, filepath = upload("/path/to/file.pdf", 123, "ordercertificate")
         self.assertTrue(result)
+        # default should not mark document private
+        mock_sync_detailed.assert_called_once()
+        _, kwargs = mock_sync_detailed.call_args
+        self.assertEqual(kwargs.get("model_report_type"), "ordercertificate")
+        self.assertFalse(kwargs.get("model_is_private"))
 
     @patch("app.api.cp")
     @patch("app.api.path.exists", return_value=False)
@@ -144,6 +181,26 @@ class TestUpload(unittest.TestCase):
 
         result, filepath = upload("/path/to/file.pdf", 123, "ordercertificate")
         self.assertTrue(result)
+
+    @patch("app.api.upload_documents_post_2.sync_detailed")
+    @patch("app.api.cp")
+    @patch("app.api.path.exists", return_value=True)
+    @patch("builtins.open", MagicMock())
+    def test_upload_private_flag(self, mock_exists, mock_cp, mock_sync_detailed):
+        """Explicitly passing ``private=True`` should set the API parameter."""
+        from app.api import upload
+
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_sync_detailed.return_value = mock_response
+
+        result, filepath = upload(
+            "/path/to/file.pdf", 123, "ordercertificate", private=True
+        )
+        self.assertTrue(result)
+        mock_sync_detailed.assert_called_once()
+        _, kwargs = mock_sync_detailed.call_args
+        self.assertTrue(kwargs.get("model_is_private"))
 
 
 class TestGetServiceOrderDocumentList(unittest.TestCase):

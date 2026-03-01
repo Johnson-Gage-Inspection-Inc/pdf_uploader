@@ -18,10 +18,14 @@ def ping_address(address: str) -> bool:
     """
     try:
         param = "-n" if os.name == "nt" else "-c"
+        # CREATE_NO_WINDOW prevents visible console windows when running
+        # from a PyInstaller windowed exe (console=False).
+        creationflags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
         result = subprocess.run(
             ["ping", param, "1", address],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            creationflags=creationflags,
         )
         return result.returncode == 0
     except Exception as e:

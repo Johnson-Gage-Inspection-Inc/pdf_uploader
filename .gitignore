@@ -8,3 +8,4 @@ temp.*
 .mypy_cache/
 .vscode/settings.json
 .coverage
+tmpclaude-*-cwd

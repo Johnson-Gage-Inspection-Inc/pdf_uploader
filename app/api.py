@@ -7,6 +7,7 @@ import app.color_print as cp
 import app.pdf as pdf
 from app.connectivity import check_connectivity
 from qualer_sdk.api.service_orders import get_work_orders
+from qualer_sdk.api.service_orders import get_work_order as _sdk_get_work_order
 from qualer_sdk.api.service_order_documents import (
     get_documents_list,
     upload_documents_post_2,
@@ -16,6 +17,10 @@ from qualer_sdk.types import File
 from typing import List, Optional
 import json
 from app.qualer_client import make_qualer_client
+from qualer_sdk.models import (
+    ServiceOrdersToClientOrderResponseModel,
+    ServiceOrdersToClientOrderItemResponseModel,
+)
 
 ERROR_FLAG = "ERROR:"
 
@@ -45,7 +50,7 @@ def get_service_orders(
     to: Optional[str] = None,
     modified_after: Optional[str] = None,
     status: Optional[str] = None,
-) -> list:
+) -> list[ServiceOrdersToClientOrderResponseModel]:
     """Fetch service orders from the Qualer API.
 
     Args:
@@ -88,6 +93,24 @@ def get_service_orders(
     return response
 
 
+def get_service_order(
+    service_order_id: int,
+) -> Optional[ServiceOrdersToClientOrderResponseModel]:
+    """Fetch a single service order by its ID.
+
+    Args:
+        service_order_id: The unique service order ID.
+
+    Returns:
+        The service order response model, or None on failure.
+    """
+    try:
+        return _sdk_get_work_order.sync(service_order_id, client=make_qualer_client())
+    except Exception as e:
+        handle_exception(e)
+        return None
+
+
 def getServiceOrderId(workOrderNumber: str) -> Optional[int]:
     """Get the service order ID for a work order number.
 
@@ -114,6 +137,7 @@ def upload(
     filepath: str,
     serviceOrderId: int,
     qualertype: str,
+    private: bool = False,
 ) -> tuple[bool, str]:
     """Upload a file to a Qualer service order.
 
@@ -121,6 +145,10 @@ def upload(
         filepath: Path to the file to upload.
         serviceOrderId: The service order ID.
         qualertype: The Qualer document/report type.
+        private: If ``True``, set ``model_is_private`` on the API call so that
+            Qualer marks the uploaded document as private. This is used for
+            AI-reviewed/annotated documents which shouldn't be visible to end
+            users.
 
     Returns:
         A tuple of (success: bool, filepath: str).
@@ -162,6 +190,7 @@ def upload(
                     client=make_qualer_client(),
                     files=[upload_file],
                     model_report_type=qualertype,
+                    model_is_private=private,
                 )
 
             except httpx.TimeoutException as e:
@@ -236,7 +265,9 @@ def get_service_order_document_list(ServiceOrderId: int) -> Optional[List[str]]:
     return file_names
 
 
-def get_work_items(service_order_id: int) -> list:
+def get_work_items(
+    service_order_id: int,
+) -> list[ServiceOrdersToClientOrderItemResponseModel]:
     """Fetch work items for a service order from the Qualer API.
 
     Args:

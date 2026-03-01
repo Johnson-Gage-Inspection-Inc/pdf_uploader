@@ -8,15 +8,45 @@ import app.api as api
 import app.color_print as cp
 from app.config import PO_DICT_FILE
 import re
+from qualer_sdk.models import ServiceOrdersToClientOrderResponseModel
 
 DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
 
+# Maps ServiceOrderId -> CustomOrderNumber (work order number).
+# Populated as a side-effect of update_dict / update_PO_numbers.
+_so_to_wo: dict[int, str] = {}
 
-def update_dict(lookup: dict, response: list) -> dict:
+
+def get_work_order_number(service_order_id: int) -> Optional[str]:
+    """Look up the CustomOrderNumber for a given ServiceOrderId.
+
+    Checks the in-memory cache first.  On a miss, makes a single API call
+    to fetch the service order and caches the result so subsequent lookups
+    for the same SO are free.
+    """
+    wo = _so_to_wo.get(service_order_id)
+    if wo is not None:
+        return wo
+
+    # Cache miss – fetch from the API
+    so = api.get_service_order(service_order_id)
+    if so and so.custom_order_number:
+        _so_to_wo[service_order_id] = so.custom_order_number
+        return so.custom_order_number
+    return None
+
+
+def update_dict(
+    lookup: dict, response: list[ServiceOrdersToClientOrderResponseModel]
+) -> dict:
     for so in response:
         PrimaryPo = so.po_number
         SecondaryPo = so.secondary_po
         ServiceOrderId = so.service_order_id
+        # Cache the SO -> WO mapping for GUI display
+        wo = so.custom_order_number
+        if wo and ServiceOrderId:
+            _so_to_wo[ServiceOrderId] = wo
         if PrimaryPo not in lookup:
             lookup[PrimaryPo] = [ServiceOrderId]
         elif ServiceOrderId not in lookup[PrimaryPo]:
@@ -86,7 +116,16 @@ def update_PO_numbers(
     # Read the compressed dictionary from the file
     try:
         with gzip.open(PO_DICT_FILE, "rb") as f:
-            lookup = json.loads(f.read().decode("utf-8"))
+            raw = json.loads(f.read().decode("utf-8"))
+        # New format: {"po_lookup": {...}, "so_to_wo": {...}}
+        # Old format: plain {PO: [SO_IDs]} dict (backward compat)
+        if isinstance(raw, dict) and "po_lookup" in raw:
+            lookup = raw["po_lookup"]
+            # Restore the SO -> WO cache (JSON keys are strings)
+            for so_str, wo in raw.get("so_to_wo", {}).items():
+                _so_to_wo[int(so_str)] = wo
+        else:
+            lookup = raw  # old format
         cp.green(f"Using PO dictionary file at: {PO_DICT_FILE}")
     except FileNotFoundError:
         cp.yellow(f"PO dictionary file not found: {PO_DICT_FILE}. Building from API...")
@@ -120,11 +159,17 @@ def update_PO_numbers(
 def save_as_zip_file(lookup: dict[str, list[Any]]):
     """Compress the dictionary and write to the file.
 
+    Persists both the PO lookup and the SO→WO mapping so that
+    custom order numbers survive across restarts.
+
     Args:
         lookup (dict): PO numbers and their corresponding service order IDs.
     """
+    # Convert int keys to strings for JSON serialisation
+    so_wo_serialisable = {str(k): v for k, v in _so_to_wo.items()}
+    payload = {"po_lookup": lookup, "so_to_wo": so_wo_serialisable}
     with gzip.open(PO_DICT_FILE, "wb") as file:
-        json_data = json.dumps(lookup).encode("utf-8")
+        json_data = json.dumps(payload).encode("utf-8")
         file.write(json_data)
 
 

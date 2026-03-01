@@ -1,14 +1,9 @@
 # app/color_print.py
 import logging
+from typing import Callable, Optional
+
 from app.config import LOG_FILE
 from colorama import init, Fore, Style
-
-# Logging levels:
-# DEBUG: Detailed information, typically of interest only when diagnosing problems.
-# INFO: Confirmation that things are working as expected.
-# WARNING: An indication that something unexpected happened, or indicative of some problem in the near future.
-# ERROR: Due to a more serious problem, the software has not been able to perform some function.
-# CRITICAL: A serious error, indicating that the program itself may be unable to continue running.
 
 try:
     logging.basicConfig(
@@ -28,12 +23,40 @@ except FileNotFoundError:
 
 init()  # Initialize colorama
 
+# --- GUI handler hook ---
+_gui_handler: Optional[Callable[[str, str], None]] = None
+_console_enabled: bool = True
+
+
+def set_gui_handler(handler: Optional[Callable[[str, str], None]]) -> None:
+    """Register a callback for GUI log display.
+
+    handler signature: handler(color_name: str, text: str)
+    Called from any thread -- handler must be thread-safe (Qt signals are).
+    """
+    global _gui_handler
+    _gui_handler = handler
+
+
+def set_console_enabled(enabled: bool) -> None:
+    """Disable console output (e.g. for windowed .exe with no console)."""
+    global _console_enabled
+    _console_enabled = enabled
+
 
 def _color(text: str | Exception, color):
     if isinstance(text, Exception):
         text = f"{text.__class__.__name__}: {text}"
-    assert color in Fore.__dict__, f"Invalid color: {color}"
-    print(Fore.__dict__[color.upper()] + str(text) + Style.RESET_ALL)
+    text_str = str(text)
+
+    # Console output
+    if _console_enabled:
+        assert color.upper() in Fore.__dict__, f"Invalid color: {color}"
+        print(Fore.__dict__[color.upper()] + text_str + Style.RESET_ALL)
+
+    # GUI output
+    if _gui_handler:
+        _gui_handler(color.lower(), text_str)
 
 
 def black(text: str | Exception = ""):  # Headers
