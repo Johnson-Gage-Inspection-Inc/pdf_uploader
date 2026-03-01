@@ -318,16 +318,17 @@ def _load_secrets() -> dict[str, str]:
 
 
 def _save_secrets(
-    qualer_api_key: str,
-    gemini_api_key: str,
-    qualer_auth_mode: str = "api_key",
-    qualer_username: str = "",
-    qualer_password: str = "",
+    qualer_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    qualer_auth_mode: Optional[str] = None,
+    qualer_username: Optional[str] = None,
+    qualer_password: Optional[str] = None,
     _path: Optional[Path] = None,
 ) -> None:
     """Encrypt and persist secrets into ``secrets.enc``.
 
-    Existing keys not being updated are preserved.
+    Each parameter uses a ``None`` sentinel to mean "leave unchanged".
+    Pass an empty string to explicitly clear a previously stored value.
     The optional *_path* parameter is for testing.
     """
     path = _path if _path is not None else _secrets_file()
@@ -347,32 +348,40 @@ def _save_secrets(
                 exc,
             )
 
-    if qualer_api_key:
-        existing["QUALER_API_KEY"] = qualer_api_key
-    if gemini_api_key:
-        existing["GEMINI_API_KEY"] = gemini_api_key
-    if qualer_auth_mode:
-        existing["QUALER_AUTH_MODE"] = qualer_auth_mode
-    if qualer_username:
-        existing["QUALER_USERNAME"] = qualer_username
-    if qualer_password:
-        existing["QUALER_PASSWORD"] = qualer_password
+    _updates: dict[str, Optional[str]] = {
+        "QUALER_API_KEY": qualer_api_key,
+        "GEMINI_API_KEY": gemini_api_key,
+        "QUALER_AUTH_MODE": qualer_auth_mode,
+        "QUALER_USERNAME": qualer_username,
+        "QUALER_PASSWORD": qualer_password,
+    }
+    for key, value in _updates.items():
+        if value is None:
+            continue  # not provided — leave existing value
+        if value:
+            existing[key] = value  # set / update
+        else:
+            existing.pop(key, None)  # empty string — clear
 
     encrypted = {k: fernet.encrypt(v.encode()).decode() for k, v in existing.items()}
     path.write_text(json.dumps(encrypted))
 
 
 def save_env(
-    qualer_api_key: str = "",
-    gemini_api_key: str = "",
-    qualer_auth_mode: str = "api_key",
-    qualer_username: str = "",
-    qualer_password: str = "",
+    qualer_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    qualer_auth_mode: Optional[str] = None,
+    qualer_username: Optional[str] = None,
+    qualer_password: Optional[str] = None,
 ) -> None:
-    """Persist secrets into encrypted ``secrets.enc``."""
+    """Persist secrets into encrypted ``secrets.enc``.
+
+    Pass ``None`` (the default) to leave a value unchanged, or an empty
+    string to explicitly clear it from the store.
+    """
     _save_secrets(
-        qualer_api_key,
-        gemini_api_key,
+        qualer_api_key=qualer_api_key,
+        gemini_api_key=gemini_api_key,
         qualer_auth_mode=qualer_auth_mode,
         qualer_username=qualer_username,
         qualer_password=qualer_password,
