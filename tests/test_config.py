@@ -116,7 +116,11 @@ class TestEncryptedSecrets(unittest.TestCase):
         from app.config_manager import _save_secrets
 
         secrets_file = Path(self._tmpdir) / "secrets.enc"
-        _save_secrets("qualer_val", "gemini_val", _path=secrets_file)
+        _save_secrets(
+            qualer_api_key="qualer_val",
+            gemini_api_key="gemini_val",
+            _path=secrets_file,
+        )
 
         raw = json.loads(secrets_file.read_text())
         # Values must not be plain text.
@@ -136,7 +140,11 @@ class TestEncryptedSecrets(unittest.TestCase):
         from app.config_manager import _save_secrets, _load_frozen_secrets
 
         secrets_file = Path(self._tmpdir) / "secrets.enc"
-        _save_secrets("qualer_val", "gemini_val", _path=secrets_file)
+        _save_secrets(
+            qualer_api_key="qualer_val",
+            gemini_api_key="gemini_val",
+            _path=secrets_file,
+        )
 
         loaded = _load_frozen_secrets(_path=secrets_file)
         self.assertEqual(loaded.get("QUALER_API_KEY"), "qualer_val")
@@ -153,7 +161,7 @@ class TestEncryptedSecrets(unittest.TestCase):
         existing = {"OTHER_KEY": self._fernet.encrypt(b"other_val").decode()}
         secrets_file.write_text(json.dumps(existing))
 
-        _save_secrets("new_qualer", "", _path=secrets_file)
+        _save_secrets(qualer_api_key="new_qualer", _path=secrets_file)
 
         raw = json.loads(secrets_file.read_text())
         self.assertIn("OTHER_KEY", raw)
@@ -163,6 +171,51 @@ class TestEncryptedSecrets(unittest.TestCase):
         self.assertEqual(
             self._fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "new_qualer"
         )
+
+    def test_empty_string_clears_credential(self):
+        """Passing '' for a secret removes it from the store."""
+        from pathlib import Path
+        from app.config_manager import _save_secrets, _load_frozen_secrets
+
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        # Seed with username and password.
+        _save_secrets(
+            qualer_username="alice",
+            qualer_password="s3cret",
+            _path=secrets_file,
+        )
+        loaded = _load_frozen_secrets(_path=secrets_file)
+        self.assertEqual(loaded["QUALER_USERNAME"], "alice")
+        self.assertEqual(loaded["QUALER_PASSWORD"], "s3cret")
+
+        # Now clear them by passing empty strings.
+        _save_secrets(
+            qualer_username="",
+            qualer_password="",
+            _path=secrets_file,
+        )
+        loaded = _load_frozen_secrets(_path=secrets_file)
+        self.assertNotIn("QUALER_USERNAME", loaded)
+        self.assertNotIn("QUALER_PASSWORD", loaded)
+
+    def test_none_leaves_credential_unchanged(self):
+        """Passing None (default) for a secret preserves its stored value."""
+        from pathlib import Path
+        from app.config_manager import _save_secrets, _load_frozen_secrets
+
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        _save_secrets(
+            qualer_api_key="key1",
+            qualer_username="alice",
+            _path=secrets_file,
+        )
+
+        # Update only api_key; username should be untouched.
+        _save_secrets(qualer_api_key="key2", _path=secrets_file)
+
+        loaded = _load_frozen_secrets(_path=secrets_file)
+        self.assertEqual(loaded["QUALER_API_KEY"], "key2")
+        self.assertEqual(loaded["QUALER_USERNAME"], "alice")
 
     def test_load_frozen_secrets_missing_file_returns_empty(self):
         """_load_frozen_secrets returns an empty dict when secrets.enc is absent."""
