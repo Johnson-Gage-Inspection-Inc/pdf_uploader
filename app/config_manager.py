@@ -175,8 +175,8 @@ def load_config() -> AppConfig:
     from dotenv import load_dotenv
 
     load_dotenv()
-    _config.qualer_api_key = os.getenv("QUALER_API_KEY", "")
-    _config.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+    _config.qualer_api_key = _decrypt_value(os.getenv("QUALER_API_KEY", ""))
+    _config.gemini_api_key = _decrypt_value(os.getenv("GEMINI_API_KEY", ""))
 
     return _config
 
@@ -239,9 +239,15 @@ def _encrypt_value(value: str) -> str:
 
     The APP_SECRET_KEY must be a URL-safe base64-encoded 32-byte key
     suitable for cryptography.fernet.Fernet. If it is not set, the value
-    is returned as-is (plaintext).
+    is returned as-is (plaintext). Values already prefixed with 'ENC:' are
+    returned unchanged to prevent double-encryption.
     """
+    import logging
+
     if not value:
+        return value
+
+    if value.startswith("ENC:"):
         return value
 
     secret_key = os.environ.get("APP_SECRET_KEY")
@@ -254,26 +260,88 @@ def _encrypt_value(value: str) -> str:
         token = f.encrypt(value.encode())
         # Prefix to indicate the value is encrypted.
         return "ENC:" + token.decode()
-    except Exception:
-        # On any encryption error, fall back to plaintext to avoid breaking
-        # existing behavior, though this reduces security.
+    except Exception as exc:
+        logging.warning(
+            "Failed to encrypt value with APP_SECRET_KEY (%s: %s); "
+            "storing plaintext. Check that APP_SECRET_KEY is a valid "
+            "URL-safe base64-encoded 32-byte Fernet key.",
+            type(exc).__name__,
+            exc,
+        )
+        return value
+
+
+def _decrypt_value(value: str) -> str:
+    """
+    Decrypt a Fernet-encrypted value prefixed with 'ENC:'.
+
+    If the value does not start with 'ENC:', it is returned as-is (plaintext).
+    If APP_SECRET_KEY is not set or decryption fails, a warning is logged and
+    the raw (encrypted) value is returned so the caller can surface the error.
+    """
+    import logging
+
+    if not value or not value.startswith("ENC:"):
+        return value
+
+    secret_key = os.environ.get("APP_SECRET_KEY")
+    if not secret_key:
+        logging.warning(
+            "Value is encrypted (ENC: prefix) but APP_SECRET_KEY is not set; "
+            "returning ciphertext as-is."
+        )
+        return value
+
+    try:
+        f = Fernet(secret_key.encode())
+        return f.decrypt(value[4:].encode()).decode()
+    except Exception as exc:
+        logging.warning(
+            "Failed to decrypt value with APP_SECRET_KEY (%s: %s); "
+            "returning ciphertext as-is.",
+            type(exc).__name__,
+            exc,
+        )
         return value
 
 
 def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
-    """Write API keys back to .env file."""
+    """Write API keys back to .env file, preserving all other existing lines."""
     if getattr(sys, "frozen", False):
         env_path = Path(sys.executable).parent / ".env"
     else:
         env_path = Path(__file__).parent.parent / ".env"
 
-    lines = []
+    # Build the updated key/value pairs.
+    updates: dict[str, str] = {}
     if qualer_api_key:
-        encrypted_qualer = _encrypt_value(qualer_api_key)
-        lines.append(f"QUALER_API_KEY={encrypted_qualer}")
+        updates["QUALER_API_KEY"] = _encrypt_value(qualer_api_key)
     if gemini_api_key:
-        encrypted_gemini = _encrypt_value(gemini_api_key)
-        lines.append(f"GEMINI_API_KEY={encrypted_gemini}")
+        updates["GEMINI_API_KEY"] = _encrypt_value(gemini_api_key)
+
+    # Read existing lines, preserving everything except the keys we're updating.
+    existing_lines: list[str] = []
+    if env_path.exists():
+        with open(env_path, "r") as f:
+            existing_lines = f.readlines()
+
+    new_lines: list[str] = []
+    seen_keys: set[str] = set()
+    for line in existing_lines:
+        stripped = line.rstrip("\n")
+        if "=" in stripped and not stripped.lstrip().startswith("#"):
+            key = stripped.split("=", 1)[0].strip()
+            if key in updates:
+                # Replace with updated (possibly encrypted) value.
+                new_lines.append(f"{key}={updates[key]}\n")
+                seen_keys.add(key)
+                continue
+        new_lines.append(line if line.endswith("\n") else line + "\n")
+
+    # Append any keys that were not already present in the file.
+    for key, val in updates.items():
+        if key not in seen_keys:
+            new_lines.append(f"{key}={val}\n")
 
     with open(env_path, "w") as f:
-        f.write("\n".join(lines) + "\n")
+        f.writelines(new_lines)
