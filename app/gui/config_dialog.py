@@ -203,39 +203,27 @@ class ConfigDialog(QDialog):
 
         # Separator
         layout.addRow(QLabel(""))
-        layout.addRow(QLabel("API Keys (stored in .env)"))
+        layout.addRow(QLabel("API Keys"))
 
-        # Qualer API Key
-        self.qualer_key = QLineEdit(self.config.qualer_api_key)
+        # Qualer API Key — never pre-populated; user types a new value to replace
+        self.qualer_key = QLineEdit()
         self.qualer_key.setEchoMode(QLineEdit.EchoMode.Password)
-        key_row = QHBoxLayout()
-        key_row.addWidget(self.qualer_key)
-        show_qualer = QPushButton("Show")
-        show_qualer.setFixedWidth(50)
-        show_qualer.setCheckable(True)
-        show_qualer.toggled.connect(
-            lambda checked: self.qualer_key.setEchoMode(
-                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
-            )
+        self.qualer_key.setPlaceholderText(
+            "(saved — type to replace)"
+            if self.config.qualer_api_key
+            else "(not set)"
         )
-        key_row.addWidget(show_qualer)
-        layout.addRow("Qualer API Key:", key_row)
+        layout.addRow("Qualer API Key:", self.qualer_key)
 
-        # Gemini API Key
-        self.gemini_key = QLineEdit(self.config.gemini_api_key)
+        # Gemini API Key — never pre-populated; user types a new value to replace
+        self.gemini_key = QLineEdit()
         self.gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
-        gkey_row = QHBoxLayout()
-        gkey_row.addWidget(self.gemini_key)
-        show_gemini = QPushButton("Show")
-        show_gemini.setFixedWidth(50)
-        show_gemini.setCheckable(True)
-        show_gemini.toggled.connect(
-            lambda checked: self.gemini_key.setEchoMode(
-                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
-            )
+        self.gemini_key.setPlaceholderText(
+            "(saved — type to replace)"
+            if self.config.gemini_api_key
+            else "(not set)"
         )
-        gkey_row.addWidget(show_gemini)
-        layout.addRow("Gemini API Key:", gkey_row)
+        layout.addRow("Gemini API Key:", self.gemini_key)
 
         self.tabs.addTab(tab, "General")
 
@@ -324,7 +312,9 @@ class ConfigDialog(QDialog):
                 )
                 return
 
-        # Build new config
+        # Build new config — keep existing key when the field is left blank
+        qualer_text = self.qualer_key.text().strip()
+        gemini_text = self.gemini_key.text().strip()
         new_config = AppConfig(
             max_runtime=max_runtime,
             live_api=self.radio_production.isChecked(),
@@ -337,18 +327,18 @@ class ConfigDialog(QDialog):
             qualer_endpoint=self.config.qualer_endpoint,
             qualer_staging_endpoint=self.config.qualer_staging_endpoint,
             watched_folders=folders,
-            qualer_api_key=self.qualer_key.text(),
-            gemini_api_key=self.gemini_key.text(),
+            qualer_api_key=qualer_text or self.config.qualer_api_key,
+            gemini_api_key=gemini_text or self.config.gemini_api_key,
         )
 
         # Save config.yaml
         save_config(new_config)
 
-        # Save .env if keys changed
-        if (
-            new_config.qualer_api_key != self.config.qualer_api_key
-            or new_config.gemini_api_key != self.config.gemini_api_key
-        ):
-            save_env(new_config.qualer_api_key, new_config.gemini_api_key)
+        # Persist secrets only when the user explicitly typed a new value
+        if qualer_text or gemini_text:
+            save_env(
+                qualer_text or self.config.qualer_api_key,
+                gemini_text or self.config.gemini_api_key,
+            )
 
         self.accept()

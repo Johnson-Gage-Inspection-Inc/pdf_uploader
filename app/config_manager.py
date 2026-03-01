@@ -5,15 +5,37 @@ Loads config.yaml from:
   1. Next to the .exe (PyInstaller frozen)
   2. Project root (development)
   3. Falls back to hardcoded defaults (equivalent to original config.py)
+
+Secret storage strategy
+-----------------------
+* Development (sys.frozen is False):
+    Secrets are stored in plain text in a .env file at the project root.
+    Standard python-dotenv behaviour; no encryption.
+
+* Bundled executable (sys.frozen is True):
+    Secrets are stored encrypted in ``secrets.enc`` next to the .exe.
+    The file is a JSON object whose values are individual Fernet tokens.
+    The Fernet key itself is kept in the OS keychain (Windows Credential
+    Manager / macOS Keychain / Linux Secret Service) via the ``keyring``
+    library under service ``"pdf_uploader"``.  On first run the key is
+    generated automatically and stored in the keychain.
 """
 
+import json
+import logging
 import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
+import keyring
 import yaml
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
+
+_KEYRING_SERVICE = "pdf_uploader"
+_KEYRING_KEY_NAME = "fernet_key"
 
 
 @dataclass
@@ -39,7 +61,7 @@ class AppConfig:
     qualer_staging_endpoint: str = "https://jgiquality.staging.qualer.com/api"
     watched_folders: list[WatchedFolder] = field(default_factory=list)
 
-    # Secrets (loaded from .env, never saved to YAML)
+    # Secrets (loaded from .env in dev, from secrets.enc in frozen builds)
     qualer_api_key: str = ""
     gemini_api_key: str = ""
 
@@ -170,12 +192,10 @@ def load_config() -> AppConfig:
     else:
         _config = _build_defaults()
 
-    # Load secrets from .env (never stored in YAML)
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    _config.qualer_api_key = os.getenv("QUALER_API_KEY", "")
-    _config.gemini_api_key = os.getenv("GEMINI_API_KEY", "")
+    # Load secrets (plain text from .env in dev; decrypted from secrets.enc when frozen)
+    secrets = _load_secrets()
+    _config.qualer_api_key = secrets.get("QUALER_API_KEY", "")
+    _config.gemini_api_key = secrets.get("GEMINI_API_KEY", "")
 
     return _config
 
@@ -232,18 +252,98 @@ def save_config(config: AppConfig, path: Optional[Path] = None) -> None:
     _config = config
 
 
-def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
-    """Write API keys back to .env file."""
-    if getattr(sys, "frozen", False):
-        env_path = Path(sys.executable).parent / ".env"
-    else:
-        env_path = Path(__file__).parent.parent / ".env"
+def _get_fernet() -> Fernet:
+    """Return a Fernet instance whose key lives in the OS keychain.
 
-    lines = []
+    On first call for a given machine the key is generated automatically and
+    stored via ``keyring``.  Subsequent calls retrieve the same key.
+    """
+    raw_key = keyring.get_password(_KEYRING_SERVICE, _KEYRING_KEY_NAME)
+    if not raw_key:
+        raw_key = Fernet.generate_key().decode()
+        keyring.set_password(_KEYRING_SERVICE, _KEYRING_KEY_NAME, raw_key)
+    return Fernet(raw_key.encode())
+
+
+def _secrets_file() -> Path:
+    """Absolute path to ``secrets.enc`` next to the bundled executable."""
+    return Path(sys.executable).parent / "secrets.enc"
+
+
+def _load_frozen_secrets(_path: Optional[Path] = None) -> dict[str, str]:
+    """Load and decrypt secrets from ``secrets.enc``.  Frozen mode only.
+
+    The optional *_path* parameter is for testing; callers should leave it
+    unset so the default location (next to the .exe) is used.
+    """
+    path = _path if _path is not None else _secrets_file()
+    if not path.exists():
+        return {}
+    try:
+        fernet = _get_fernet()
+        encrypted: dict[str, str] = json.loads(path.read_text())
+        return {k: fernet.decrypt(v.encode()).decode() for k, v in encrypted.items()}
+    except Exception as exc:
+        logging.warning(
+            "Failed to load secrets from %s (%s: %s).",
+            path,
+            type(exc).__name__,
+            exc,
+        )
+        return {}
+
+
+def _load_secrets() -> dict[str, str]:
+    """Load API keys from the appropriate source for the current run mode.
+
+    * Development: plain text ``.env`` via python-dotenv.
+    * Frozen/bundled: encrypted ``secrets.enc`` via Fernet + OS keychain.
+    """
+    if not getattr(sys, "frozen", False):
+        load_dotenv()
+        return {
+            "QUALER_API_KEY": os.getenv("QUALER_API_KEY", ""),
+            "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", ""),
+        }
+    return _load_frozen_secrets()
+
+
+def _save_secrets(
+    qualer_api_key: str,
+    gemini_api_key: str,
+    _path: Optional[Path] = None,
+) -> None:
+    """Encrypt and persist API keys into ``secrets.enc``.
+
+    Existing keys not being updated are preserved.
+    The optional *_path* parameter is for testing.
+    """
+    path = _path if _path is not None else _secrets_file()
+    fernet = _get_fernet()
+
+    # Preserve keys that aren't being updated.
+    existing: dict[str, str] = {}
+    if path.exists():
+        try:
+            raw: dict[str, str] = json.loads(path.read_text())
+            existing = {k: fernet.decrypt(v.encode()).decode() for k, v in raw.items()}
+        except Exception as exc:
+            logging.warning(
+                "Could not read existing secrets from %s (%s: %s); overwriting.",
+                path,
+                type(exc).__name__,
+                exc,
+            )
+
     if qualer_api_key:
-        lines.append(f"QUALER_API_KEY={qualer_api_key}")
+        existing["QUALER_API_KEY"] = qualer_api_key
     if gemini_api_key:
-        lines.append(f"GEMINI_API_KEY={gemini_api_key}")
+        existing["GEMINI_API_KEY"] = gemini_api_key
 
-    with open(env_path, "w") as f:
-        f.write("\n".join(lines) + "\n")
+    encrypted = {k: fernet.encrypt(v.encode()).decode() for k, v in existing.items()}
+    path.write_text(json.dumps(encrypted))
+
+
+def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
+    """Persist API keys into encrypted ``secrets.enc``."""
+    _save_secrets(qualer_api_key, gemini_api_key)
