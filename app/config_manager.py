@@ -315,60 +315,10 @@ def _save_dev_env(
 ) -> None:
     """Persist API keys using encrypted storage even in development.
 
-    The *_path* parameter is retained for API compatibility but is not
-    currently used; secrets are stored via ``_save_frozen_secrets``.
-    """
-    # Reuse the encrypted secrets mechanism to avoid writing API keys
-    # in clear text to disk during development.
-    _save_frozen_secrets(qualer_api_key, gemini_api_key)
-
-
-def _save_frozen_secrets(
-    qualer_api_key: str,
-    gemini_api_key: str,
-    _path: Optional[Path] = None,
-) -> None:
-    """Encrypt and persist API keys into ``secrets.enc``.  Frozen mode only.
-
-    Existing keys not being updated are preserved.
+    Uses the same encrypted ``secrets.enc`` mechanism as frozen builds.
     The optional *_path* parameter is for testing.
     """
-    path = _path if _path is not None else _secrets_file()
-    fernet = _get_fernet()
-
-    # Preserve keys that aren't being updated.
-    existing: dict[str, str] = {}
-    if path.exists():
-        try:
-            raw: dict[str, str] = json.loads(path.read_text())
-            existing = {k: fernet.decrypt(v.encode()).decode() for k, v in raw.items()}
-        except Exception as exc:
-            logging.warning(
-                "Could not read existing secrets from %s (%s: %s); overwriting.",
-                path,
-                type(exc).__name__,
-                exc,
-            )
-
-    if qualer_api_key:
-        existing["QUALER_API_KEY"] = qualer_api_key
-    if gemini_api_key:
-        existing["GEMINI_API_KEY"] = gemini_api_key
-
-    encrypted = {k: fernet.encrypt(v.encode()).decode() for k, v in existing.items()}
-    path.write_text(json.dumps(encrypted))
-
-
-def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
-    """Persist API keys using the strategy appropriate for the current run mode.
-
-    * Development: plain text upsert into ``.env``.
-    * Frozen/bundled: encrypted upsert into ``secrets.enc`` next to the .exe.
-    """
-    if getattr(sys, "frozen", False):
-        _save_frozen_secrets(qualer_api_key, gemini_api_key)
-    else:
-        _save_dev_env(qualer_api_key, gemini_api_key)
+    _save_frozen_secrets(qualer_api_key, gemini_api_key, _path=_path)
 
 
 def _save_frozen_secrets(

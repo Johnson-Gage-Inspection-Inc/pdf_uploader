@@ -60,7 +60,9 @@ class TestDevSecrets(unittest.TestCase):
         import tempfile
 
         self._tmpdir = tempfile.mkdtemp()
-        self._original = {k: os.environ.get(k) for k in ("QUALER_API_KEY", "GEMINI_API_KEY")}
+        self._original = {
+            k: os.environ.get(k) for k in ("QUALER_API_KEY", "GEMINI_API_KEY")
+        }
         for k in ("QUALER_API_KEY", "GEMINI_API_KEY"):
             os.environ.pop(k, None)
 
@@ -74,46 +76,82 @@ class TestDevSecrets(unittest.TestCase):
             else:
                 os.environ[k] = v
 
-    def test_save_dev_env_writes_plain_text(self):
-        """_save_dev_env writes plain-text values — no encryption."""
+    def test_save_dev_env_writes_encrypted(self):
+        """_save_dev_env writes encrypted values via _save_frozen_secrets."""
+        import json
         from pathlib import Path
+        from unittest.mock import patch
+        from cryptography.fernet import Fernet
         from app.config_manager import _save_dev_env
 
-        env_file = Path(self._tmpdir) / ".env"
-        _save_dev_env("qualer_key_value", "gemini_key_value", _path=env_file)
+        test_key = Fernet.generate_key().decode()
+        fernet = Fernet(test_key.encode())
 
-        content = env_file.read_text()
-        self.assertIn("QUALER_API_KEY=qualer_key_value", content)
-        self.assertIn("GEMINI_API_KEY=gemini_key_value", content)
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        with patch("keyring.get_password", return_value=test_key), patch(
+            "keyring.set_password"
+        ):
+            _save_dev_env("qualer_key_value", "gemini_key_value", _path=secrets_file)
 
-    def test_save_dev_env_preserves_other_lines(self):
-        """_save_dev_env preserves unrelated entries in .env."""
+        raw = json.loads(secrets_file.read_text())
+        self.assertEqual(
+            fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "qualer_key_value"
+        )
+        self.assertEqual(
+            fernet.decrypt(raw["GEMINI_API_KEY"].encode()).decode(), "gemini_key_value"
+        )
+
+    def test_save_dev_env_preserves_existing_keys(self):
+        """_save_dev_env preserves unrelated keys already in secrets.enc."""
+        import json
         from pathlib import Path
+        from unittest.mock import patch
+        from cryptography.fernet import Fernet
         from app.config_manager import _save_dev_env
 
-        env_file = Path(self._tmpdir) / ".env"
-        env_file.write_text("OTHER_VAR=keep_me\nQUALER_API_KEY=old\n")
+        test_key = Fernet.generate_key().decode()
+        fernet = Fernet(test_key.encode())
 
-        _save_dev_env("new_qualer", "", _path=env_file)
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        existing = {"OTHER_KEY": fernet.encrypt(b"other_val").decode()}
+        secrets_file.write_text(json.dumps(existing))
 
-        content = env_file.read_text()
-        self.assertIn("OTHER_VAR=keep_me", content)
-        self.assertIn("QUALER_API_KEY=new_qualer", content)
-        self.assertNotIn("QUALER_API_KEY=old", content)
+        with patch("keyring.get_password", return_value=test_key), patch(
+            "keyring.set_password"
+        ):
+            _save_dev_env("new_qualer", "", _path=secrets_file)
+
+        raw = json.loads(secrets_file.read_text())
+        self.assertIn("OTHER_KEY", raw)
+        self.assertEqual(
+            fernet.decrypt(raw["OTHER_KEY"].encode()).decode(), "other_val"
+        )
+        self.assertEqual(
+            fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "new_qualer"
+        )
 
     def test_save_dev_env_upserts_missing_key(self):
-        """_save_dev_env appends a key that doesn't yet exist in .env."""
+        """_save_dev_env adds a key when secrets.enc doesn't have it yet."""
+        import json
         from pathlib import Path
+        from unittest.mock import patch
+        from cryptography.fernet import Fernet
         from app.config_manager import _save_dev_env
 
-        env_file = Path(self._tmpdir) / ".env"
-        env_file.write_text("OTHER_VAR=keep_me\n")
+        test_key = Fernet.generate_key().decode()
+        fernet = Fernet(test_key.encode())
 
-        _save_dev_env("qualer123", "", _path=env_file)
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
 
-        content = env_file.read_text()
-        self.assertIn("QUALER_API_KEY=qualer123", content)
-        self.assertIn("OTHER_VAR=keep_me", content)
+        with patch("keyring.get_password", return_value=test_key), patch(
+            "keyring.set_password"
+        ):
+            _save_dev_env("qualer123", "", _path=secrets_file)
+
+        raw = json.loads(secrets_file.read_text())
+        self.assertEqual(
+            fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "qualer123"
+        )
 
     def test_load_secrets_dev_reads_env(self):
         """_load_secrets reads plain-text values from the environment."""
@@ -141,7 +179,9 @@ class TestFrozenSecrets(unittest.TestCase):
         self._fernet = Fernet(self._test_key.encode())
 
         # Patch keyring so tests don't touch the real OS keychain.
-        self._keyring_patcher = patch("keyring.get_password", return_value=self._test_key)
+        self._keyring_patcher = patch(
+            "keyring.get_password", return_value=self._test_key
+        )
         self._keyring_patcher.start()
         self._keyring_set_patcher = patch("keyring.set_password")
         self._keyring_set_patcher.start()
@@ -281,9 +321,7 @@ class TestConfigDialogObfuscation(unittest.TestCase):
         from PyQt6.QtWidgets import QPushButton
 
         dlg = self._make_dialog(qualer="key", gemini="key")
-        show_buttons = [
-            w for w in dlg.findChildren(QPushButton) if w.text() == "Show"
-        ]
+        show_buttons = [w for w in dlg.findChildren(QPushButton) if w.text() == "Show"]
         self.assertEqual(show_buttons, [])
 
 
