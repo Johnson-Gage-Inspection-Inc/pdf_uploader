@@ -41,7 +41,7 @@
 
 ## Overview
 
-The pdfuploader project is designed to simplify the process of uploading scanned documents to Qualer. It features a robust architecture with key components such as file processing tools, connectivity checks, and archive management. The project aims to provide a seamless user experience by handling various scenarios, including successful uploads, failed uploads, and file renaming, while ensuring compatibility across different environments and platforms.
+The pdfuploader project is designed to simplify the process of uploading scanned documents to Qualer. It features a robust architecture with key components such as file processing tools, connectivity checks, and archive management. The project includes a **PyQt6-based GUI** with a live dashboard, log viewer, and system tray support, as well as a headless CLI mode. It handles various scenarios including successful uploads, failed uploads, file renaming, PO validation, and multi-instance file claiming, while ensuring compatibility across different environments and platforms.
 
 ---
 
@@ -49,17 +49,17 @@ The pdfuploader project is designed to simplify the process of uploading scanned
 
 | Feature         | Summary       |
 | :--- | :---:           |
+| **GUI Dashboard** | *   PyQt6-based desktop application with a live dashboard, log viewer, and system tray icon.  *   Dashboard shows summary counters (total, uploaded, failed, no order, processing).  *   File table with clickable work order hyperlinks to Qualer.  *   Detail dialog shows PO validation breakdown for PO files and basic upload info for other documents.  *   Minimize-to-tray support — keeps running in the background. |
+| **PO Validation** | *   Extracts line items from purchase order PDFs.  *   Compares prices against Qualer work items.  *   Generates annotated PDFs highlighting mismatches and missing items.  *   Uploads annotated results as private documents. |
 | **PDF Correction** |  *   Backup OCR if not provided by the scanner.  *   Ensure PDFs are upright by detecting and correcting orientation.  *   Split multi-page PDFs into separate files when a new work order number is detected.|
 | **Automatic Triggers** |  *   Automatically watch directories for new PDFs.  *   Identify document type based on source, contents, or filename.  *   Archive or delete processed files based on settings.  *   Handle file renaming to avoid conflicts.|
-| **Integration** |  *   Upload PDFs to the Qualer API with detailed logging.  *   Retry and resolve naming conflicts during uploads. |
-| ⚙️ **Architecture** |  *   Modular design with separate modules for API gateway, file processing, and configuration.  *   Utilizes a centralized `config.py` file for configuration data.  *   Employs an error handling system using `cp.red`.  *   Supports live or staging API usage, file uploads or skips, and deletion or archiving of processed files. |
-| 📚 **Documentation** |  *   Provides detailed documentation for each module, including script instructions, functions, and error handling mechanisms.  *   Includes a comprehensive overview of the project's architecture and functionality.  *   Offers concise response guidelines for user interactions.  *   Utilizes Markdown formatting for easy readability. |
-| 📊 **Data Processing** |  *   Employs data processing techniques to extract relevant pages from PDFs, including `extract`, `workorders`, and `create_child_pdf` functions.  *   Supports file rename errors using the `try_rename` function.  *   Utilizes an API token to fetch service orders and update a dictionary of purchase orders (POs).  *   Compresses data for storage in compressed JSON files. |
+| **Multi-Instance Safety** | *   Atomic claim-by-move prevents multiple machines from processing the same file.  *   PermissionError retry handles OneDrive/antivirus file locks.  *   Observer thread is guarded against crashes to keep watching after errors. |
+| **Integration** |  *   Upload PDFs to the Qualer API with detailed logging.  *   Retry and resolve naming conflicts during uploads.  *   Work order number lookup with API fallback and caching. |
+| ⚙️ **Architecture** |  *   Modular design with separate modules for API gateway, file processing, GUI, PO validation, and configuration.  *   YAML-based configuration (`config.yaml`) with backward-compatible `config.py` facade.  *   Event bus for decoupled GUI updates from watcher threads.  *   Supports live or staging API usage, file uploads or skips, and deletion or archiving of processed files. |
+| 📊 **Data Processing** |  *   Employs data processing techniques to extract relevant pages from PDFs, including `extract`, `workorders`, and `create_child_pdf` functions.  *   Supports file rename errors using the `try_rename` function with retry logic.  *   Purchase order dictionary with SO→WO mapping, persisted as compressed JSON.  *   API fallback for work order numbers on cache miss. |
 | 🌐 **Connectivity** |  *   Verifies internet availability by pinging Google's address.  *   Checks accessibility of SharePoint and Qualer servers.  *   Verifies the existence of the SharePoint directory.  *   Provides real-time feedback on system connections for informed decision-making. |
-| 💻 **Development Tools** |  *   Utilizes Python as the primary programming language.  *   Employs the `colorama` library for colorized logging.  *   Incorporates PyInstaller for packaging and deployment.  *   Supports PyMPDF, PDF, Pillow, and PdF2Imagick libraries for PDF processing. |
-| 📁 **Configuration** |  *   Utilizes a centralized `config.py` file for configuration data.  *   Configures API endpoints, directory paths, and upload settings for the project.  *   Specifies document types for Qualer API uploads.  *   Offers live or staging API usage options. |
-
-Please note that this table is not exhaustive, but it highlights some of the key features and technologies used in the `pdf_uploader` project.
+| 💻 **Development Tools** |  *   Python 3.14 with PyQt6 for the GUI.  *   PyInstaller for packaging as a single-file windowed `.exe`.  *   `colorama` for colorized console logging.  *   PyMuPDF (fitz), pypdf, Tesseract OCR for PDF processing. |
+| 📁 **Configuration** |  *   YAML-based configuration file (`config.yaml`) for all settings.  *   Configures API endpoints, directory paths, upload settings, and PO validation per folder.  *   Backward-compatible `config.py` facade via PEP 562 `__getattr__`.  *   Supports `{sharepoint_path}` variable interpolation in paths. |
 
 ---
 
@@ -68,21 +68,42 @@ Please note that this table is not exhaustive, but it highlights some of the key
 ```sh
 └── pdf_uploader/
     ├── README.md
-    ├── app
-    │   ├── PurchaseOrders.py
-    │   ├── api.py
-    │   ├── archive.py
-    │   ├── color_print.py
-    │   ├── config.py
-    │   ├── connectivity.py
-    │   ├── dict.json.gz
-    │   ├── orientation.py
-    │   └── pdf.py
-    ├── image.png
+    ├── config.yaml           # Main configuration file
+    ├── app/
+    │   ├── api.py            # Qualer API gateway
+    │   ├── archive.py        # File archiving
+    │   ├── color_print.py    # Colorized logging
+    │   ├── config.py         # Config facade (reads config.yaml)
+    │   ├── config_manager.py # YAML config loader
+    │   ├── connectivity.py   # Network checks
+    │   ├── event_bus.py      # PyQt signal bus for GUI
+    │   ├── orientation.py    # PDF orientation detection
+    │   ├── pdf.py            # PDF processing utilities
+    │   ├── PurchaseOrders.py # PO dictionary & SO→WO mapping
+    │   ├── qualer_client.py  # SDK client factory
+    │   ├── version.py        # Build version tag
+    │   ├── gui/
+    │   │   ├── main_window.py      # Main application window
+    │   │   ├── dashboard_widget.py # Dashboard tab
+    │   │   ├── detail_dialog.py    # Validation detail dialog
+    │   │   ├── log_widget.py       # Log viewer tab
+    │   │   ├── config_dialog.py    # Settings dialog
+    │   │   ├── tray_icon.py        # System tray icon
+    │   │   └── resources.py        # Icons & resources
+    │   └── po_validator/
+    │       ├── extractor.py  # PO line item extraction
+    │       ├── annotator.py  # PDF annotation with results
+    │       ├── models.py     # Pydantic data models
+    │       └── reporter.py   # Validation reporting
+    ├── hooks/
+    │   └── hook-qualer_sdk.py # PyInstaller collection hook
+    ├── stubs/                 # Type stubs for untyped deps
+    ├── tests/
+    ├── upload.py              # Main file processing logic
+    ├── watcher.py             # Directory watcher & entry point
     ├── requirements.txt
-    ├── upload.py
-    ├── watcher.py
-    └── .env  # You must create this
+    ├── PDF_Uploader.spec      # PyInstaller build spec
+    └── .env                   # You must create this
 ```
 
 
@@ -95,15 +116,19 @@ Please note that this table is not exhaustive, but it highlights some of the key
       <table>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/upload.py'>upload.py</a></b></td>
-        <td>- The main file processing tool script, to upload scanned documents to a Qualer endpoint(s) based on the presence of work orders or PO numbers within the file name or body.<br>- The script handles various scenarios, including successful uploads, failed uploads, and file renaming.</td>
+        <td>- The main file processing script. Uploads scanned documents to Qualer endpoint(s) based on the presence of work orders or PO numbers within the file name or body.<br>- Implements claim-by-move for multi-instance safety, PO validation with annotated uploads, and retry logic for file locking.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/watcher.py'>watcher.py</a></b></td>
-        <td>- Monitors directories for new PDF files and tells `upload.py` to process them.<br>- The script uses a watchdog library to track changes in the input directory, waiting for files to become stable before processing them.<br>- It also checks connectivity with Qualer periodically and exits if the maximum runtime is exceeded.</td>
+        <td>- Entry point for both GUI and CLI modes.<br>- Monitors directories for new PDF files using the watchdog library, waits for file stability before processing, and checks connectivity periodically.<br>- In GUI mode, launches a PyQt6 dashboard with system tray support.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/config.yaml'>config.yaml</a></b></td>
+        <td>- Main configuration file. Defines API endpoints, watched folders, document types, PO validation settings, and path templates with <code>{sharepoint_path}</code> interpolation.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/requirements.txt'>requirements.txt</a></b></td>
-        <td>- Lists the dependencies required for the project, ensuring compatibility across different environments and platforms.</td>
+        <td>- Lists the dependencies required for the project, including PyQt6, qualer-sdk, PyMuPDF, watchdog, and others.</td>
       </tr>
       </table>
     </blockquote>
@@ -113,66 +138,94 @@ Please note that this table is not exhaustive, but it highlights some of the key
     <blockquote>
       <table>
       <tr>
-        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/connectivity.py'>connectivity.py</a></b></td>
-        <td>- Ensures internet availability by pinging Google's address.<br>- Checks accessibility of SharePoint and Qualer servers.<br>- Verifies the existence of the SharePoint directory.</td>
-      </tr>
-      <tr>
-        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/archive.py'>archive.py</a></b></td>
-        <td>- Archives files older than today by compressing them into a zip folder.<br>- Scans the specified folder for PDF files, identifies those created before the current date, and moves or deletes them based on user preference.<br>- Compresses the identified files into an archive.</td>
-      </tr>
-      <tr>
-        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/color_print.py'>color_print.py</a></b></td>
-        <td>- Enables colorized logging across the project by integrating with the `colorama` library.<br>- Defines functions to log messages in different colors, including headers, errors, successes, warnings, and informational messages.</td>
-      </tr>
-      <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/api.py'>api.py</a></b></td>
-        <td>- Serves as the central API gateway for a Qualer integration project.<br>- Provides functions for login, retrieving service order data, uploading files, and fetching document lists.<br>- Handles errors and exceptions.</td>
-      </tr>
-      <tr>
-        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/pdf.py'>pdf.py</a></b></td>
-        <td>- A module for PDF processing.<br>- Includes functions for extracting text, rotating PDFs, and handling work orders.</td>
-      </tr>
-      <tr>
-        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/config.py'>config.py</a></b></td>
-        <td>- Configures the PDF uploader settings for the project.<br>- Sets up variables such as API endpoints, directory paths, and upload settings to manage PDF files.<br>- Allows for live or staging API usage, file uploads or skips, and deletion or archiving of processed files.<br>- Specifies document types for Qualer API uploads.<br><br>
-<b>Variables:</b>
-<details>
-
-+ `LIVEAPI`:
-
-  - Set to True to use live API (Used for production), False to use staging API (Used for testing)
-+ `DEBUG`:
-
-  - Set to False to upload files, True to skip uploads (Used for testing)
-
-+ `DELETE_MODE`:
-  - Set to True to delete PDF files that were processed before the current date.
-  - Set to False to move them to their respective "Old PDFs" subdirectory.
-
-+ `QUALER_ENDPOINT`: The Qualer API endpoint that will be used to upload the PDF files.
-+ `QUALER_STAGING_ENDPOINT`: The Qualer staging API endpoint which is used for testing.
-
-+ `CONFIG`: A list of dictionaries that contain the following keys:
-  - `INPUT_DIR`: The directory that the watcher will watch for new PDF files.
-  - `OUTPUT_DIR`: The directory that the processed PDF files will be archived if they
-    are successfully uploaded. *Leave this blank to delete the files instead.*
-  - `REJECT_DIR`: The directory that the processed PDF files will be moved to if they
-    are not successfully uploaded.
-  - `QUALER_DOCUMENT_TYPE`: The Qualer document type that will be used to upload the
-    PDF files from the INPUT_DIR. The following document types are available:
-    ```
-    general, assetsummary, assetlabel, assetdetail, assetcertificate, ordersummary, orderinvoice, orderestimate, dashboard, orderdetail, ordercertificate
-    ```
-</details>
-        </td>
-      </tr>
-      <tr>
-        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/dict.json'>dict.json.gz</a></b></td>
-        <td>- A compressed dictionary of purchase orders (POs) and their corresponding service order IDs.
+        <td>- Central API gateway for Qualer integration.<br>- Provides functions for fetching service orders (bulk and single), uploading files (with private flag support), and retrieving document lists.</td>
       </tr>
       <tr>
         <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/PurchaseOrders.py'>PurchaseOrders.py</a></b></td>
-        <td>- Manages a dictionary of purchase orders (POs) and their corresponding service order IDs.<br>- Retrieves data from an API, updates the dictionary with new PO numbers, and saves it to a compressed JSON file.</td>
+        <td>- Manages a dictionary of purchase orders and their corresponding service order IDs.<br>- Caches SO→WO (work order number) mappings with API fallback on cache miss.<br>- Persists data as compressed JSON with backward compatibility for old cache formats.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/config_manager.py'>config_manager.py</a></b></td>
+        <td>- YAML-based configuration loader using Pydantic models.<br>- Resolves <code>{sharepoint_path}</code> placeholders and <code>~</code> in paths.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/event_bus.py'>event_bus.py</a></b></td>
+        <td>- PyQt signal bus for decoupled communication between watcher threads and the GUI.<br>- Emits signals for file processing lifecycle, watcher status, connectivity changes, and log messages.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/connectivity.py'>connectivity.py</a></b></td>
+        <td>- Ensures internet availability by pinging Google's address.<br>- Checks accessibility of SharePoint and Qualer servers.<br>- Uses <code>CREATE_NO_WINDOW</code> to prevent console popups from windowed exe.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/pdf.py'>pdf.py</a></b></td>
+        <td>- PDF processing module with functions for text extraction, orientation correction, work order detection, file splitting, and renaming with retry logic for transient file locks.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/archive.py'>archive.py</a></b></td>
+        <td>- Archives files older than today by compressing them into a zip folder.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/color_print.py'>color_print.py</a></b></td>
+        <td>- Colorized logging with optional GUI handler that forwards messages to the event bus for display in the log viewer tab.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/config.py'>config.py</a></b></td>
+        <td>- Backward-compatible facade over <code>config_manager</code>.<br>- All existing <code>from app.config import X</code> imports continue to work via PEP 562 <code>__getattr__</code>.</td>
+      </tr>
+      </table>
+    </blockquote>
+  </details>
+  <details>
+    <summary><b>app/gui</b></summary>
+    <blockquote>
+      <table>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/gui/main_window.py'>main_window.py</a></b></td>
+        <td>- Main application window with tabbed interface (Dashboard + Log) and system tray integration.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/gui/dashboard_widget.py'>dashboard_widget.py</a></b></td>
+        <td>- Dashboard tab showing summary counters, processed-file table with clickable WO# hyperlinks, validation status, and watched folder indicators.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/gui/detail_dialog.py'>detail_dialog.py</a></b></td>
+        <td>- Modal dialog for viewing file details. Shows PO validation breakdown (mismatches, missing items, extraction info) for PO files, and basic upload info for non-PO files.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/gui/log_widget.py'>log_widget.py</a></b></td>
+        <td>- Log viewer tab displaying real-time color-coded log messages from all watcher threads.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/gui/tray_icon.py'>tray_icon.py</a></b></td>
+        <td>- System tray icon with show/hide and quit actions. Keeps the application running when the window is closed.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/gui/config_dialog.py'>config_dialog.py</a></b></td>
+        <td>- Settings dialog for editing configuration at runtime.</td>
+      </tr>
+      </table>
+    </blockquote>
+  </details>
+  <details>
+    <summary><b>app/po_validator</b></summary>
+    <blockquote>
+      <table>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/po_validator/models.py'>models.py</a></b></td>
+        <td>- Pydantic data models for PO extraction and validation results, including line items, price mismatches, missing work items, and annotations.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/po_validator/extractor.py'>extractor.py</a></b></td>
+        <td>- Extracts structured line item data from purchase order PDFs using table parsing and text extraction.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/po_validator/annotator.py'>annotator.py</a></b></td>
+        <td>- Annotates PO PDFs with validation results — draws colored borders, stamps, and summary pages.</td>
+      </tr>
+      <tr>
+        <td><b><a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/po_validator/reporter.py'>reporter.py</a></b></td>
+        <td>- Compares extracted PO line items against Qualer work items and produces a ValidationResult.</td>
       </tr>
       </table>
     </blockquote>
@@ -188,12 +241,11 @@ The following are instructions for building the program from source.
 
 ### Prerequisites
 
-Ensure you have the following installed:
-
 Before getting started with pdf_uploader, ensure your runtime environment meets the following requirements:
 
-- **Programming Language:** Python
+- **Programming Language:** Python 3.14+
 - **Package Manager:** Pip
+- **Tesseract OCR:** [Install Tesseract](https://github.com/tesseract-ocr/tesseract) and configure the path in `config.yaml`
 
 
 ###  Installation
@@ -213,25 +265,23 @@ Install pdf_uploader using one of the following methods:
   ```
 3. Prepare a virtual environment
 
-    1. Create a virtual environment, with python 3.10
+    1. Create a virtual environment:
 
         ```sh
-        py -3.10 -m venv myenv
+        python -m venv .venv
         ```
 
     2. Activate the virtual environment:
 
         ```sh
-        myenv\Scripts\activate  # Windows
+        .venv\Scripts\activate  # Windows
         ```
 
         ```bash
-        source myenv/bin/activate  # Linux/Mac
+        source .venv/bin/activate  # Linux/Mac
         ```
 
     3. Install the project dependencies:
-
-        **Using `pip`** &nbsp; [<img align="center" src="https://img.shields.io/badge/Pip-3776AB.svg?style={badge_style}&logo=pypi&logoColor=white" />](https://pypi.org/project/pip/)
 
         ```sh
         pip install -r requirements.txt
@@ -240,19 +290,19 @@ Install pdf_uploader using one of the following methods:
     4. (Optional) Verify the setup:
 
         ```sh
-        python -m pip list
+        python -m pytest tests/
         ```
 
 4. Configure your project
   See [configuration](#configuration).
 
-1. (Optional) Compile a standalone executable using `pyinstaller`:
+5. (Optional) Compile a standalone executable using `pyinstaller`:
   With the virtual environment still active, you can compile a binary using `pyinstaller`
 
   ```
-  pyinstaller PDF_Uploader.spec
+  pyinstaller PDF_Uploader.spec --noconfirm
   ```
-  Creating a standalone executable ensures the program can run without requiring Python, dependencies, or credentials on the target system.  Alternatively, you can simply download the latest release from [https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/releases/latest], precompiled.
+  Creating a standalone executable ensures the program can run without requiring Python, dependencies, or credentials on the target system.  Alternatively, you can simply download the latest release from [the releases page](https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/releases/latest), precompiled.
 
 ---
 
@@ -260,8 +310,8 @@ Install pdf_uploader using one of the following methods:
 
 1. Create a `.env` file in the root directory of the project to securely store sensitive credentials. Add the following content:
     ```
-    QUALER_EMAIL=your_QUALER_EMAILname
-    QUALER_PASSWORD=your_QUALER_PASSWORDword
+    QUALER_EMAIL=your_email
+    QUALER_PASSWORD=your_password
     ```
 
     This user must at least have the API security role in [Employee Settings](https://jgiquality.qualer.com/Company/Employees) on Qualer.
@@ -272,35 +322,32 @@ Install pdf_uploader using one of the following methods:
 
 
 
-2. Other parameters
-Other settings are configured in <a href='https://github.com/Johnson-Gage-Inspection-Inc/pdf_uploader/blob/master/app/config.py'>config.py</a>:
+2. Edit `config.yaml` to configure watched folders, API endpoints, and other settings:
 
-    <b>Variables:</b>
-    <details>
-    + `LIVEAPI`:
-        - Set to True to use live API (Used for production), False to use staging API (Used for testing)
-    + `DEBUG`:
-        - Set to False to upload files, True to skip uploads (Used for testing)
-    + `DELETE_MODE`:
-      - Set to True to delete PDF files that were processed before the current date.
-      - Set to False to move them to their respective "Old PDFs" subdirectory.
+    ```yaml
+    max_runtime: null          # null = run forever, or seconds
+    live_api: true             # false = use staging endpoint
+    debug: false               # true = skip actual uploads
+    delete_mode: false         # true = delete processed files, false = archive
 
-    + `QUALER_ENDPOINT`: The Qualer API endpoint that will be used to upload the PDF files.
-    + `QUALER_STAGING_ENDPOINT`: The Qualer staging API endpoint which is used for testing.
+    sharepoint_path: "~/Johnson Gage and Inspection, Inc/..."
+    log_file: "{sharepoint_path}Logs/pdfUploader.log"
+    po_dict_file: "{sharepoint_path}Logs/DoNotMoveThisFile.json.gz"
 
-    + `CONFIG`: A list of dictionaries that contain the following keys:
-      - `INPUT_DIR`: The directory that the watcher will watch for new PDF files.
-      - `OUTPUT_DIR`: The directory that the processed PDF files will be archived if they
-        are successfully uploaded. *Leave this blank to delete the files instead.*
-      - `REJECT_DIR`: The directory that the processed PDF files will be moved to if they
-        are not successfully uploaded.
-      - `QUALER_DOCUMENT_TYPE`: The Qualer document type that will be used to upload the
-        PDF files from the INPUT_DIR. The following document types are available:
-        ```
-        general, assetsummary, assetlabel, assetdetail, assetcertificate, ordersummary, orderinvoice, orderestimate, dashboard, orderdetail, ordercertificate
-        ```
-    </details>
+    watched_folders:
+      - input_dir: "{sharepoint_path}!!! Front Office Scanned Docs - HOLDING"
+        output_dir: "{sharepoint_path}!!! Front Office Scanned Docs - HOLDING/Archives"
+        reject_dir: "{sharepoint_path}!!! Front Office Scanned Docs - HOLDING/No_Order_Found"
+        qualer_document_type: "General"
+        validate_po: true      # Enable PO price validation for this folder
+      - input_dir: "{sharepoint_path}!!! Scanned External Certs"
+        output_dir: "{sharepoint_path}!!! Scanned External Certs/Archives"
+        reject_dir: "{sharepoint_path}!!! Scanned External Certs/No_Order_Found"
+        qualer_document_type: "ordercertificate"
+        validate_po: false
+    ```
 
+    Paths support `~` expansion and `{sharepoint_path}` interpolation.
 
 ---
 
@@ -310,30 +357,28 @@ Other settings are configured in <a href='https://github.com/Johnson-Gage-Inspec
 
 Choose one:
 
-+ Run with Python:
++ **GUI mode** (default for `.exe`):
 
-    1. Activate the virtual environment:
+    ```sh
+    python watcher.py --gui
+    ```
 
-        ```sh
-        source myenv/bin/activate # Linux/Mac
-        ```
-
-        or
-
-        ```sh
-        myenv\Scripts\activate     # Windows
-        ```
-
-    2. Run pdf_uploader using the following command:
-
-          ```sh
-          python watcher.py
-          ```
-
-+ Run executable:
+    or simply run the compiled executable:
 
     ```sh
     PDF_Uploader.exe
+    ```
+
++ **CLI mode** (default when running from source):
+
+    ```sh
+    python watcher.py
+    ```
+
+    or explicitly:
+
+    ```sh
+    python watcher.py --cli
     ```
 
 ### Operation Overview
@@ -360,11 +405,9 @@ The `pdf_uploader` script automates the processing and categorization of scanned
 2. **Document Categorization**:
 
    - Based on internal naming conventions and business logic, documents are categorized into:
-     - **Purchase Orders (POs)**: Likely associated with customer orders.
+     - **Purchase Orders (POs)**: Files starting with `PO` — looked up against the PO dictionary and uploaded to all matching service orders. Optionally validated against Qualer work items for price accuracy.
 
-     - **Service Orders (SOs)**: Possibly internal or external service-related documents.
-
-     - **Shippers**: May pertain to shipment confirmations or delivery notes.
+     - **Work Orders**: Files containing work order numbers in the filename or body — looked up via the API and uploaded to the matching service order.
 
 
 
@@ -372,23 +415,41 @@ The `pdf_uploader` script automates the processing and categorization of scanned
 
    - The script scans the file path and content to determine the document type:
 
-     - Files scanned from the **General Documents** folder are treated as miscellaneous files unless their filenames or content indicate otherwise.
+     - Files with filenames starting with `PO` are treated as purchase orders and uploaded to all matching service orders.
 
-     - Files scanned from the **Order Certificates** folder are more likely to be categorized as POs or related documents.
+     - Other files are scanned for work order numbers in the filename and body text.
+
+     - An atomic **claim-by-move** ensures only one instance processes each file when multiple machines watch the same OneDrive folder.
 
    - The filename is adjusted as needed to resolve conflicts or provide additional context.
 
 
 
-4. **Error Handling and Upload**:
+4. **PO Validation** (when `validate_po: true`):
+
+   - After uploading a PO document, line items are extracted and compared against Qualer work items.
+
+   - An annotated PDF is generated showing pass/fail status, price mismatches, and missing items.
+
+   - The annotated PDF is uploaded as a private document.
+
+   - Results are displayed in the GUI dashboard's detail dialog.
+
+
+
+5. **Error Handling and Upload**:
 
    - If a file cannot be uploaded due to naming conflicts, content mismatches, or system errors, the script logs the issue for review.
+
+   - File locking (OneDrive sync, antivirus) is handled with retry logic.
+
+   - The observer thread is protected from crashes to keep monitoring after errors.
 
    - Successfully processed files are archived or moved based on their outcome.
 
 
 
-5. **Automatic Reorganization**:
+6. **Automatic Reorganization**:
 
    - Processed files are moved to designated directories:
      - **Accepted Files**: Stored in an archive directory after successful uploads.
