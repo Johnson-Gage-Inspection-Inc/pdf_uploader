@@ -282,7 +282,7 @@ def process_file(filepath: str, folder: WatchedFolder):
         # Check for work orders in file body or file name
         workorders_result = pdf.workorders(filepath)
         if not workorders_result:
-            workorders_result, reoriented = reorient_pdf_for_workorders(
+            workorders_result, _ = reorient_pdf_for_workorders(
                 filepath, folder.reject_dir
             )
         if not workorders_result:
