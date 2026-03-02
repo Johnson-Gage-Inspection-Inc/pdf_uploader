@@ -171,9 +171,15 @@ def load_config() -> AppConfig:
             "po_dict_file", "{sharepoint_path}Logs/DoNotMoveThisFile.json.gz"
         )
 
+        _mw_raw = raw.get("max_workers")
+        try:
+            _max_workers = max(1, int(_mw_raw)) if _mw_raw is not None else 3
+        except (ValueError, TypeError):
+            _max_workers = 3
+
         _config = AppConfig(
             max_runtime=raw.get("max_runtime"),
-            max_workers=max(1, int(raw.get("max_workers", 3))),
+            max_workers=_max_workers,
             debug=raw.get("debug", False),
             delete_mode=raw.get("delete_mode", False),
             tesseract_cmd_path=raw.get(
