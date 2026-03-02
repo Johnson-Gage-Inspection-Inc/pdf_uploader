@@ -153,15 +153,12 @@ def _determine_outcome(
     result: ValidationResult,
 ) -> Literal["APPROVED", "REJECTED", "INCONCLUSIVE"]:
     """Map a ValidationResult to an overall outcome for stamping."""
-    if result.mismatches:
+    if result.status == "pass":
+        return "APPROVED"
+    if result.status == "fail":
         return "REJECTED"
-    if result.missing_items:
-        return "INCONCLUSIVE"
-    if result.status in ("no_pricing", "extraction_failed", "skipped"):
-        return "INCONCLUSIVE"
-    if any(a.status == "unverified" for a in result.annotations):
-        return "INCONCLUSIVE"
-    return "APPROVED"
+    # no_pricing, extraction_failed, skipped
+    return "INCONCLUSIVE"
 
 
 def annotate_pdf(
