@@ -169,3 +169,14 @@ class TestEnsureAuthenticated:
 
         with pytest.raises(AuthenticationError, match="QUALER_PASSWORD"):
             ensure_authenticated()
+
+    @patch("app.auth.get_config")
+    def test_unknown_auth_mode_raises(self, mock_get_config):
+        from app.auth import AuthenticationError, ensure_authenticated
+
+        mock_cfg = MagicMock()
+        mock_cfg.qualer_auth_mode = "unknown_mode"
+        mock_get_config.return_value = mock_cfg
+
+        with pytest.raises(AuthenticationError, match="Unsupported qualer_auth_mode"):
+            ensure_authenticated()
