@@ -308,11 +308,22 @@ Install pdf_uploader using one of the following methods:
 
 ### Configuration
 
-1. Create a `.env` file in the root directory of the project to securely store sensitive credentials. Add the following content:
+1. Create a `.env` file in the root directory of the project to securely store sensitive credentials. Add the following content depending on the authentication mode you want to use:
+
+    **API key mode** (default):
     ```
-    QUALER_EMAIL=your_email
+    QUALER_AUTH_MODE=api_key
+    QUALER_API_KEY=your_api_key
+    ```
+
+    **Username/password mode**:
+    ```
+    QUALER_AUTH_MODE=credentials
+    QUALER_USERNAME=your_email@example.com
     QUALER_PASSWORD=your_password
     ```
+
+    In frozen builds, credentials are stored in an encrypted `secrets.enc` file next to the executable (managed via the Settings dialog). The `.env` file is only used in development.
 
     This user must at least have the API security role in [Employee Settings](https://jgiquality.qualer.com/Company/Employees) on Qualer.
 
@@ -326,6 +337,7 @@ Install pdf_uploader using one of the following methods:
 
     ```yaml
     max_runtime: null          # null = run forever, or seconds
+    max_workers: 3             # number of parallel PDF processing threads
     debug: false               # true = skip actual uploads
     delete_mode: false         # true = delete processed files, false = archive
 

@@ -1,6 +1,7 @@
 """Type stubs for app.config -- exposes config_manager values as module attributes."""
 
 MAX_RUNTIME: int | None
+MAX_WORKERS: int
 DEBUG: bool
 DELETE_MODE: bool
 tesseract_cmd_path: str

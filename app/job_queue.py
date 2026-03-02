@@ -96,23 +96,34 @@ class JobQueue:
         Returns the Job if submitted, or None if the queue is shut down
         or the file is already queued.
         """
-        if self._shutdown:
-            cp.yellow(f"Queue is shut down, ignoring: {filepath}")
-            return None
-
         with self._lock:
-            if filepath in self._jobs:
-                existing = self._jobs[filepath]
-                if existing.future is not None and not existing.future.done():
+            if self._shutdown:
+                cp.yellow(f"Queue is shut down, ignoring: {filepath}")
+                return None
+
+            existing = self._jobs.get(filepath)
+            if existing is not None:
+                # Treat any in-progress or pending job (including placeholders)
+                # as already queued to avoid duplicate submissions.
+                if existing.future is None or not existing.future.done():
                     cp.yellow(f"Already queued: {filepath}")
                     return None
 
-        job = Job(filepath=filepath, folder=folder)
-        future = self._pool.submit(self._run_job, job)
-        job.future = future
-
-        with self._lock:
+            # Register the job under the lock first to close the race
+            # with _run_job's cleanup.
+            job = Job(filepath=filepath, folder=folder)
             self._jobs[filepath] = job
+
+        # Submit work to the pool outside the lock to avoid blocking other
+        # operations on the queue while the executor schedules the task.
+        # Clean up the placeholder if the pool rejects the task (e.g., already shut down).
+        try:
+            future = self._pool.submit(self._run_job, job)
+        except Exception:
+            with self._lock:
+                self._jobs.pop(filepath, None)
+            raise
+        job.future = future
 
         cp.blue(f"Queued for processing: {filepath}")
         return job
@@ -155,12 +166,22 @@ class JobQueue:
         """Gracefully shut down the worker pool.
 
         Args:
-            wait: If True, block until all in-flight jobs complete (up to *timeout*).
-            timeout: Maximum seconds to wait for in-flight jobs.
+            wait: If True, block until in-flight jobs complete, bounded by *timeout* seconds.
+            timeout: Maximum seconds to wait for in-flight jobs when wait=True.
         """
         self._shutdown = True
         cp.white(f"Shutting down job queue (wait={wait}, timeout={timeout}s)...")
-        self._pool.shutdown(wait=wait)
+        if wait:
+            from concurrent.futures import wait as wait_futures
+
+            with self._lock:
+                pending = [
+                    j.future
+                    for j in self._jobs.values()
+                    if j.future is not None and not j.future.done()
+                ]
+            wait_futures(pending, timeout=timeout)
+        self._pool.shutdown(wait=False)
         cp.white("Job queue stopped.")
 
 
