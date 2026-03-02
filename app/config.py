@@ -1,7 +1,8 @@
 """
 config.py -- Backward-compatible facade over config_manager.
 
-All existing imports like ``from app.config import LIVEAPI`` continue to work.
+Exposes commonly-used config values as module-level attributes so that
+existing imports like ``from app.config import DEBUG`` continue to work.
 Values are loaded from config.yaml (or defaults) via config_manager.
 """
 
@@ -15,7 +16,7 @@ def __getattr__(name):
     cfg = get_config()
     _MAP = {
         "MAX_RUNTIME": cfg.max_runtime,
-        "LIVEAPI": cfg.live_api,
+        "MAX_WORKERS": cfg.max_workers,
         "DEBUG": cfg.debug,
         "DELETE_MODE": cfg.delete_mode,
         "tesseract_cmd_path": cfg.tesseract_cmd_path,
@@ -24,7 +25,6 @@ def __getattr__(name):
         "LOG_FILE": cfg.log_file,
         "PO_DICT_FILE": cfg.po_dict_file,
         "QUALER_ENDPOINT": cfg.qualer_endpoint,
-        "QUALER_STAGING_ENDPOINT": cfg.qualer_staging_endpoint,
     }
     if name in _MAP:
         return _MAP[name]

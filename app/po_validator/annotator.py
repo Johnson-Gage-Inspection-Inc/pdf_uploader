@@ -29,7 +29,7 @@ def _get_stamps_dir() -> Path:
     # When running from a PyInstaller bundle, sys._MEIPASS points to the
     # temporary directory containing bundled data files.
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base = Path(sys._MEIPASS)
+        base = Path(sys._MEIPASS)  # pyright: ignore[reportAttributeAccessIssue]
     else:
         base = Path(__file__).parent
     return base / "stamps"
@@ -153,15 +153,18 @@ def _determine_outcome(
     result: ValidationResult,
 ) -> Literal["APPROVED", "REJECTED", "INCONCLUSIVE"]:
     """Map a ValidationResult to an overall outcome for stamping."""
-    if result.mismatches:
+    if result.status == "fail":
         return "REJECTED"
-    if result.missing_items:
-        return "INCONCLUSIVE"
-    if result.status in ("no_pricing", "extraction_failed", "skipped"):
-        return "INCONCLUSIVE"
-    if any(a.status == "unverified" for a in result.annotations):
-        return "INCONCLUSIVE"
-    return "APPROVED"
+    if result.status == "pass":
+        # Downgrade to INCONCLUSIVE when any annotation could not be verified
+        # or when the validator flagged missing work items.
+        if result.missing_items:
+            return "INCONCLUSIVE"
+        if any(a.status == "unverified" for a in result.annotations):
+            return "INCONCLUSIVE"
+        return "APPROVED"
+    # no_pricing, extraction_failed, skipped
+    return "INCONCLUSIVE"
 
 
 def annotate_pdf(

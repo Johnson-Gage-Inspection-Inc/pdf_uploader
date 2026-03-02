@@ -1,3 +1,6 @@
+# flake8: noqa
+from __future__ import annotations
+
 from typing import Any, Sequence
 
 class Matrix:
@@ -14,6 +17,7 @@ class Matrix:
 class Point:
     x: float
     y: float
+
     def __init__(self, x: float, y: float) -> None: ...
 
 class Rect:
@@ -23,12 +27,14 @@ class Rect:
     y1: float
     width: float
     height: float
+
     def __init__(self, x0: float, y0: float, x1: float, y1: float) -> None: ...
 
 class Pixmap:
     width: int
     height: int
     samples: bytes
+
     def __init__(self, *args: Any, **kwargs: Any) -> None: ...
 
 class Shape:
@@ -45,6 +51,7 @@ class Shape:
 
 class Page:
     rect: Rect
+
     def get_pixmap(
         self,
         *,
@@ -83,7 +90,7 @@ class Page:
 class Document:
     def load_page(self, page_id: int = ...) -> Page: ...
     def close(self) -> None: ...
-    def __enter__(self) -> "Document": ...
+    def __enter__(self) -> Document: ...
     def __exit__(self, *args: Any) -> None: ...
     def __len__(self) -> int: ...
     def __getitem__(self, index: int) -> Page: ...

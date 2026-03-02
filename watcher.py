@@ -26,7 +26,6 @@ import app.pdf as pdf
 from app.archive import move_old_pdfs
 from app.config import MAX_RUNTIME
 from app.config_manager import get_config, WatchedFolder
-from upload import process_file
 from app.connectivity import check_connectivity
 
 # Module-level shutdown event — set to request all watchers to stop.
@@ -38,8 +37,23 @@ _observers_lock = Lock()
 
 
 def process_pdfs(folder: WatchedFolder):
+    """Process all PDFs waiting in the folder's input directory.
+
+    If a job queue is running (GUI mode), each file is submitted to the
+    pool for concurrent processing.  Otherwise (CLI mode or queue not
+    yet initialized), files are processed synchronously.
+    """
+    from app.job_queue import get_queue
+
+    queue = get_queue()
     for filepath in pdf.next(folder.input_dir):
-        process_file(filepath, folder)
+        if queue is not None:
+            queue.submit(filepath, folder)
+        else:
+            # Fallback: direct synchronous processing (CLI mode)
+            from upload import process_file
+
+            process_file(filepath, folder)
 
 
 class PDFFileHandler(FileSystemEventHandler):
@@ -225,6 +239,13 @@ def initialize():
 
 def launch_cli():
     """Run in CLI mode (original behavior)."""
+    from app.auth import ensure_authenticated, AuthenticationError
+
+    try:
+        ensure_authenticated()
+    except AuthenticationError as exc:
+        cp.red(f"Authentication failed: {exc}")
+        sys.exit(1)
     check_connectivity()
 
     threads = []
@@ -254,6 +275,7 @@ def launch_gui():
     """Start Qt application with GUI."""
     from PyQt6.QtWidgets import QApplication
     from app.event_bus import init_bus
+    from app.job_queue import init_queue, shutdown_queue
     from app.gui.main_window import MainWindow
     from app.color_print import set_gui_handler, set_console_enabled
 
@@ -262,6 +284,10 @@ def launch_gui():
 
     # Initialize event bus
     bus = init_bus()
+
+    # Initialize job queue with configured max_workers
+    cfg = get_config()
+    init_queue(max_workers=cfg.max_workers)
 
     # Wire color_print to event bus
     set_gui_handler(lambda color, text: bus.log_message.emit(color, text))
@@ -274,7 +300,16 @@ def launch_gui():
 
     # Start watcher threads (daemon=True so they die when Qt event loop exits)
     def start_watchers():
-        check_connectivity()
+        from app.auth import ensure_authenticated, AuthenticationError
+
+        try:
+            ensure_authenticated()
+            check_connectivity()
+        except AuthenticationError as exc:
+            # Surface authentication failures via the GUI event bus and abort startup
+            bus.log_message.emit("red", f"Authentication failed: {exc}")
+            request_shutdown()
+            return
         for folder in get_config().watched_folders:
             move_old_pdfs(folder.output_dir)
             move_old_pdfs(folder.reject_dir)
@@ -289,6 +324,7 @@ def launch_gui():
     # Ensure watchers are stopped and process exits when the app quits
     def _on_about_to_quit():
         request_shutdown()
+        shutdown_queue(wait=True, timeout=30.0)
 
     app.aboutToQuit.connect(_on_about_to_quit)
 

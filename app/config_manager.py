@@ -50,20 +50,22 @@ class WatchedFolder:
 @dataclass
 class AppConfig:
     max_runtime: Optional[int] = None
-    live_api: bool = True
     debug: bool = False
     delete_mode: bool = False
     tesseract_cmd_path: str = r"C:/Program Files/Tesseract-OCR/tesseract.exe"
     sharepoint_path: str = ""
     log_file: str = ""
     po_dict_file: str = ""
+    max_workers: int = 3
     qualer_endpoint: str = "https://jgiquality.qualer.com/api"
-    qualer_staging_endpoint: str = "https://jgiquality.staging.qualer.com/api"
     watched_folders: list[WatchedFolder] = field(default_factory=list)
 
     # Secrets (loaded from .env in dev, from secrets.enc in frozen builds)
     qualer_api_key: str = ""
     gemini_api_key: str = ""
+    qualer_auth_mode: str = "api_key"  # "api_key" or "credentials"
+    qualer_username: str = ""
+    qualer_password: str = ""
 
 
 _config: Optional[AppConfig] = None
@@ -169,9 +171,15 @@ def load_config() -> AppConfig:
             "po_dict_file", "{sharepoint_path}Logs/DoNotMoveThisFile.json.gz"
         )
 
+        _mw_raw = raw.get("max_workers")
+        try:
+            _max_workers = max(1, int(_mw_raw)) if _mw_raw is not None else 3
+        except (ValueError, TypeError):
+            _max_workers = 3
+
         _config = AppConfig(
             max_runtime=raw.get("max_runtime"),
-            live_api=raw.get("live_api", True),
+            max_workers=_max_workers,
             debug=raw.get("debug", False),
             delete_mode=raw.get("delete_mode", False),
             tesseract_cmd_path=raw.get(
@@ -183,10 +191,6 @@ def load_config() -> AppConfig:
             qualer_endpoint=raw.get(
                 "qualer_endpoint", "https://jgiquality.qualer.com/api"
             ),
-            qualer_staging_endpoint=raw.get(
-                "qualer_staging_endpoint",
-                "https://jgiquality.staging.qualer.com/api",
-            ),
             watched_folders=folders,
         )
     else:
@@ -196,6 +200,23 @@ def load_config() -> AppConfig:
     secrets = _load_secrets()
     _config.qualer_api_key = secrets.get("QUALER_API_KEY", "")
     _config.gemini_api_key = secrets.get("GEMINI_API_KEY", "")
+    _config.qualer_auth_mode = secrets.get("QUALER_AUTH_MODE", "api_key")
+    _config.qualer_username = secrets.get("QUALER_USERNAME", "")
+    _config.qualer_password = secrets.get("QUALER_PASSWORD", "")
+
+    # Ensure non-password secrets are also available via environment variables so that
+    # code which reads from os.environ (e.g., Qualer/Gemini clients) behaves
+    # consistently in both dev (.env) and frozen modes. Do not export passwords.
+    env_mappings = {
+        "QUALER_API_KEY": _config.qualer_api_key,
+        "GEMINI_API_KEY": _config.gemini_api_key,
+        "QUALER_AUTH_MODE": _config.qualer_auth_mode,
+        "QUALER_USERNAME": _config.qualer_username,
+    }
+    for key, value in env_mappings.items():
+        if value:
+            # Do not override an explicitly set environment variable.
+            os.environ.setdefault(key, value)
 
     return _config
 
@@ -224,7 +245,7 @@ def save_config(config: AppConfig, path: Optional[Path] = None) -> None:
 
     data = {
         "max_runtime": config.max_runtime,
-        "live_api": config.live_api,
+        "max_workers": config.max_workers,
         "debug": config.debug,
         "delete_mode": config.delete_mode,
         "tesseract_cmd_path": config.tesseract_cmd_path,
@@ -232,7 +253,6 @@ def save_config(config: AppConfig, path: Optional[Path] = None) -> None:
         "log_file": config.log_file,
         "po_dict_file": config.po_dict_file,
         "qualer_endpoint": config.qualer_endpoint,
-        "qualer_staging_endpoint": config.qualer_staging_endpoint,
         "watched_folders": [
             {
                 "input_dir": wf.input_dir,
@@ -294,7 +314,7 @@ def _load_frozen_secrets(_path: Optional[Path] = None) -> dict[str, str]:
 
 
 def _load_secrets() -> dict[str, str]:
-    """Load API keys from the appropriate source for the current run mode.
+    """Load secrets from the appropriate source for the current run mode.
 
     * Development: plain text ``.env`` via python-dotenv.
     * Frozen/bundled: encrypted ``secrets.enc`` via Fernet + OS keychain.
@@ -304,18 +324,25 @@ def _load_secrets() -> dict[str, str]:
         return {
             "QUALER_API_KEY": os.getenv("QUALER_API_KEY", ""),
             "GEMINI_API_KEY": os.getenv("GEMINI_API_KEY", ""),
+            "QUALER_AUTH_MODE": os.getenv("QUALER_AUTH_MODE", "api_key"),
+            "QUALER_USERNAME": os.getenv("QUALER_USERNAME", ""),
+            "QUALER_PASSWORD": os.getenv("QUALER_PASSWORD", ""),
         }
     return _load_frozen_secrets()
 
 
 def _save_secrets(
-    qualer_api_key: str,
-    gemini_api_key: str,
+    qualer_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    qualer_auth_mode: Optional[str] = None,
+    qualer_username: Optional[str] = None,
+    qualer_password: Optional[str] = None,
     _path: Optional[Path] = None,
 ) -> None:
-    """Encrypt and persist API keys into ``secrets.enc``.
+    """Encrypt and persist secrets into ``secrets.enc``.
 
-    Existing keys not being updated are preserved.
+    Each parameter uses a ``None`` sentinel to mean "leave unchanged".
+    Pass an empty string to explicitly clear a previously stored value.
     The optional *_path* parameter is for testing.
     """
     path = _path if _path is not None else _secrets_file()
@@ -335,15 +362,94 @@ def _save_secrets(
                 exc,
             )
 
-    if qualer_api_key:
-        existing["QUALER_API_KEY"] = qualer_api_key
-    if gemini_api_key:
-        existing["GEMINI_API_KEY"] = gemini_api_key
+    _updates: dict[str, Optional[str]] = {
+        "QUALER_API_KEY": qualer_api_key,
+        "GEMINI_API_KEY": gemini_api_key,
+        "QUALER_AUTH_MODE": qualer_auth_mode,
+        "QUALER_USERNAME": qualer_username,
+        "QUALER_PASSWORD": qualer_password,
+    }
+    for key, value in _updates.items():
+        if value is None:
+            continue  # not provided — leave existing value
+        if value:
+            existing[key] = value  # set / update
+        else:
+            existing.pop(key, None)  # empty string — clear
 
     encrypted = {k: fernet.encrypt(v.encode()).decode() for k, v in existing.items()}
     path.write_text(json.dumps(encrypted))
 
 
-def save_env(qualer_api_key: str, gemini_api_key: str) -> None:
-    """Persist API keys into encrypted ``secrets.enc``."""
-    _save_secrets(qualer_api_key, gemini_api_key)
+def _save_dev_env(
+    qualer_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    qualer_auth_mode: Optional[str] = None,
+    qualer_username: Optional[str] = None,
+    qualer_password: Optional[str] = None,
+) -> None:
+    """Persist secrets into the project-root ``.env`` file (development only).
+
+    Each parameter uses a ``None`` sentinel to mean "leave unchanged".
+    Pass an empty string to explicitly clear a previously stored value.
+    """
+    from dotenv import set_key, unset_key
+
+    env_path = Path(__file__).parent.parent / ".env"
+
+    _updates = {
+        "QUALER_API_KEY": qualer_api_key,
+        "GEMINI_API_KEY": gemini_api_key,
+        "QUALER_AUTH_MODE": qualer_auth_mode,
+        "QUALER_USERNAME": qualer_username,
+        "QUALER_PASSWORD": qualer_password,
+    }
+    for key, value in _updates.items():
+        if value is None:
+            continue  # not provided — leave unchanged
+        if value:
+            set_key(str(env_path), key, value)
+        else:
+            # empty string — clear from .env (unset_key ignores missing keys)
+            if env_path.exists():
+                unset_key(str(env_path), key)
+
+
+def save_env(
+    qualer_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    qualer_auth_mode: Optional[str] = None,
+    qualer_username: Optional[str] = None,
+    qualer_password: Optional[str] = None,
+) -> None:
+    """Persist secrets to the appropriate store for the current run mode.
+
+    * Development: writes to ``.env`` at the project root.
+    * Frozen/bundled: writes to encrypted ``secrets.enc`` next to the .exe.
+
+    Pass ``None`` (the default) to leave a value unchanged, or an empty
+    string to explicitly clear it from the store.
+    """
+    if not getattr(sys, "frozen", False):
+        _save_dev_env(
+            qualer_api_key=qualer_api_key,
+            gemini_api_key=gemini_api_key,
+            qualer_auth_mode=qualer_auth_mode,
+            qualer_username=qualer_username,
+            qualer_password=qualer_password,
+        )
+    else:
+        _save_secrets(
+            qualer_api_key=qualer_api_key,
+            gemini_api_key=gemini_api_key,
+            qualer_auth_mode=qualer_auth_mode,
+            qualer_username=qualer_username,
+            qualer_password=qualer_password,
+        )
+
+
+def update_env_token(new_token: str) -> None:
+    """Update QUALER_API_KEY in the secrets store without disturbing other values."""
+    existing = _load_secrets()
+    current_auth_mode = existing.get("QUALER_AUTH_MODE") or "api_key"
+    save_env(qualer_api_key=new_token, qualer_auth_mode=current_auth_mode)

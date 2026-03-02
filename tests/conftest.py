@@ -39,6 +39,7 @@ def pytest_configure(config):
         "app.PurchaseOrders",
         "app.orientation",
         "app.qualer_client",
+        "app.job_queue",
     ]:
         try:
             __import__(mod)

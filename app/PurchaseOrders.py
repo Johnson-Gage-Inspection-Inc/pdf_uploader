@@ -3,6 +3,7 @@ import datetime as dt
 import gzip
 import json
 import os
+import threading
 from typing import Optional, Any
 import app.api as api
 import app.color_print as cp
@@ -16,6 +17,11 @@ DT_FORMAT = "%Y-%m-%dT%H:%M:%S"
 # Populated as a side-effect of update_dict / update_PO_numbers.
 _so_to_wo: dict[int, str] = {}
 
+# Lock guarding _so_to_wo dict and PO dict file I/O.
+# Uses RLock so that save_as_zip_file can be called from within
+# _update_PO_numbers_locked without deadlocking.
+_po_lock = threading.RLock()
+
 
 def get_work_order_number(service_order_id: int) -> Optional[str]:
     """Look up the CustomOrderNumber for a given ServiceOrderId.
@@ -24,14 +30,16 @@ def get_work_order_number(service_order_id: int) -> Optional[str]:
     to fetch the service order and caches the result so subsequent lookups
     for the same SO are free.
     """
-    wo = _so_to_wo.get(service_order_id)
+    with _po_lock:
+        wo = _so_to_wo.get(service_order_id)
     if wo is not None:
         return wo
 
     # Cache miss – fetch from the API
     so = api.get_service_order(service_order_id)
     if so and so.custom_order_number:
-        _so_to_wo[service_order_id] = so.custom_order_number
+        with _po_lock:
+            _so_to_wo[service_order_id] = so.custom_order_number
         return so.custom_order_number
     return None
 
@@ -46,7 +54,8 @@ def update_dict(
         # Cache the SO -> WO mapping for GUI display
         wo = so.custom_order_number
         if wo and ServiceOrderId:
-            _so_to_wo[ServiceOrderId] = wo
+            with _po_lock:
+                _so_to_wo[ServiceOrderId] = wo
         if PrimaryPo not in lookup:
             lookup[PrimaryPo] = [ServiceOrderId]
         elif ServiceOrderId not in lookup[PrimaryPo]:
@@ -113,6 +122,14 @@ def update_PO_numbers(
     Returns:
         lookup (dict): PO numbers and their corresponding service order IDs.
     """
+    with _po_lock:
+        return _update_PO_numbers_locked(modified_after)
+
+
+def _update_PO_numbers_locked(
+    modified_after: Optional[str] = None,
+) -> dict[str, list[Any]]:
+    """Inner implementation of update_PO_numbers; must be called with _po_lock held."""
     # Read the compressed dictionary from the file
     try:
         with gzip.open(PO_DICT_FILE, "rb") as f:
@@ -166,7 +183,8 @@ def save_as_zip_file(lookup: dict[str, list[Any]]):
         lookup (dict): PO numbers and their corresponding service order IDs.
     """
     # Convert int keys to strings for JSON serialisation
-    so_wo_serialisable = {str(k): v for k, v in _so_to_wo.items()}
+    with _po_lock:
+        so_wo_serialisable = {str(k): v for k, v in _so_to_wo.items()}
     payload = {"po_lookup": lookup, "so_to_wo": so_wo_serialisable}
     with gzip.open(PO_DICT_FILE, "wb") as file:
         json_data = json.dumps(payload).encode("utf-8")

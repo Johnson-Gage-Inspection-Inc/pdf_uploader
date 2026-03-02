@@ -1,6 +1,6 @@
 import os
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 import sys
 from app.config_manager import WatchedFolder
 
@@ -12,7 +12,6 @@ from app.config_manager import WatchedFolder
 
 mock_config = MagicMock()
 mock_config.DEBUG = False
-mock_config.LIVEAPI = True
 mock_config.QUALER_ENDPOINT = "https://api.example.com/api"
 mock_config.LOG_FILE = None
 
@@ -323,7 +322,7 @@ class TestRunPOValidation(unittest.TestCase):
     @patch("os.path.isfile", return_value=True)
     def test_no_work_items_skips_annotation(self, mock_isfile, mock_work_items):
         """When no work items are found, validation is skipped without error."""
-        with patch("builtins.open", unittest.mock.mock_open(read_data=b"%PDF")):
+        with patch("builtins.open", mock_open(read_data=b"%PDF")):
             _run_po_validation("/path/to/po.pdf", "/path/to/po.pdf", [123], "po.pdf")
         mock_work_items.assert_called_once_with(123)
 
@@ -343,7 +342,7 @@ class TestRunPOValidation(unittest.TestCase):
             "po_annotated.pdf",
             mock_result,
         )
-        with patch("builtins.open", unittest.mock.mock_open(read_data=b"%PDF")):
+        with patch("builtins.open", mock_open(read_data=b"%PDF")):
             _run_po_validation("/path/to/po.pdf", "/path/to/po.pdf", [123], "po.pdf")
         mock_upload.assert_called_once()
 
@@ -351,7 +350,7 @@ class TestRunPOValidation(unittest.TestCase):
     @patch("os.path.isfile", return_value=True)
     def test_validation_exception_does_not_raise(self, mock_isfile, mock_work_items):
         """Exceptions during validation are caught and do not propagate."""
-        with patch("builtins.open", unittest.mock.mock_open(read_data=b"%PDF")):
+        with patch("builtins.open", mock_open(read_data=b"%PDF")):
             # Should not raise
             _run_po_validation("/path/to/po.pdf", "/path/to/po.pdf", [123], "po.pdf")
 

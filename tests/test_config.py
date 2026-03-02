@@ -6,7 +6,6 @@ class TestConfig(unittest.TestCase):
     def test_config_has_required_attributes(self):
         import app.config as config
 
-        self.assertIsInstance(config.LIVEAPI, bool)
         self.assertIsInstance(config.DEBUG, bool)
         self.assertIsInstance(config.DELETE_MODE, bool)
         self.assertIsInstance(config.tesseract_cmd_path, str)
@@ -36,7 +35,6 @@ class TestConfig(unittest.TestCase):
         import app.config as config
 
         self.assertIn("qualer.com", config.QUALER_ENDPOINT)
-        self.assertIn("staging", config.QUALER_STAGING_ENDPOINT)
 
     def test_config_has_two_watched_folders(self):
         from app.config_manager import get_config, WatchedFolder
@@ -116,7 +114,11 @@ class TestEncryptedSecrets(unittest.TestCase):
         from app.config_manager import _save_secrets
 
         secrets_file = Path(self._tmpdir) / "secrets.enc"
-        _save_secrets("qualer_val", "gemini_val", _path=secrets_file)
+        _save_secrets(
+            qualer_api_key="qualer_val",
+            gemini_api_key="gemini_val",
+            _path=secrets_file,
+        )
 
         raw = json.loads(secrets_file.read_text())
         # Values must not be plain text.
@@ -136,7 +138,11 @@ class TestEncryptedSecrets(unittest.TestCase):
         from app.config_manager import _save_secrets, _load_frozen_secrets
 
         secrets_file = Path(self._tmpdir) / "secrets.enc"
-        _save_secrets("qualer_val", "gemini_val", _path=secrets_file)
+        _save_secrets(
+            qualer_api_key="qualer_val",
+            gemini_api_key="gemini_val",
+            _path=secrets_file,
+        )
 
         loaded = _load_frozen_secrets(_path=secrets_file)
         self.assertEqual(loaded.get("QUALER_API_KEY"), "qualer_val")
@@ -153,7 +159,7 @@ class TestEncryptedSecrets(unittest.TestCase):
         existing = {"OTHER_KEY": self._fernet.encrypt(b"other_val").decode()}
         secrets_file.write_text(json.dumps(existing))
 
-        _save_secrets("new_qualer", "", _path=secrets_file)
+        _save_secrets(qualer_api_key="new_qualer", _path=secrets_file)
 
         raw = json.loads(secrets_file.read_text())
         self.assertIn("OTHER_KEY", raw)
@@ -163,6 +169,51 @@ class TestEncryptedSecrets(unittest.TestCase):
         self.assertEqual(
             self._fernet.decrypt(raw["QUALER_API_KEY"].encode()).decode(), "new_qualer"
         )
+
+    def test_empty_string_clears_credential(self):
+        """Passing '' for a secret removes it from the store."""
+        from pathlib import Path
+        from app.config_manager import _save_secrets, _load_frozen_secrets
+
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        # Seed with username and password.
+        _save_secrets(
+            qualer_username="alice",
+            qualer_password="s3cret",
+            _path=secrets_file,
+        )
+        loaded = _load_frozen_secrets(_path=secrets_file)
+        self.assertEqual(loaded["QUALER_USERNAME"], "alice")
+        self.assertEqual(loaded["QUALER_PASSWORD"], "s3cret")
+
+        # Now clear them by passing empty strings.
+        _save_secrets(
+            qualer_username="",
+            qualer_password="",
+            _path=secrets_file,
+        )
+        loaded = _load_frozen_secrets(_path=secrets_file)
+        self.assertNotIn("QUALER_USERNAME", loaded)
+        self.assertNotIn("QUALER_PASSWORD", loaded)
+
+    def test_none_leaves_credential_unchanged(self):
+        """Passing None (default) for a secret preserves its stored value."""
+        from pathlib import Path
+        from app.config_manager import _save_secrets, _load_frozen_secrets
+
+        secrets_file = Path(self._tmpdir) / "secrets.enc"
+        _save_secrets(
+            qualer_api_key="key1",
+            qualer_username="alice",
+            _path=secrets_file,
+        )
+
+        # Update only api_key; username should be untouched.
+        _save_secrets(qualer_api_key="key2", _path=secrets_file)
+
+        loaded = _load_frozen_secrets(_path=secrets_file)
+        self.assertEqual(loaded["QUALER_API_KEY"], "key2")
+        self.assertEqual(loaded["QUALER_USERNAME"], "alice")
 
     def test_load_frozen_secrets_missing_file_returns_empty(self):
         """_load_frozen_secrets returns an empty dict when secrets.enc is absent."""
@@ -232,13 +283,18 @@ class TestConfigDialogObfuscation(unittest.TestCase):
         self.assertEqual(dlg.qualer_key.echoMode(), QLineEdit.EchoMode.Password)
         self.assertEqual(dlg.gemini_key.echoMode(), QLineEdit.EchoMode.Password)
 
-    def test_no_show_buttons_in_dialog(self):
-        """There must be no 'Show' button in the dialog."""
+    def test_no_show_buttons_for_api_keys(self):
+        """Show buttons must only exist inside the credentials group (for password),
+        not for API key fields."""
         from PyQt6.QtWidgets import QPushButton
 
         dlg = self._make_dialog(qualer="key", gemini="key")
         show_buttons = [w for w in dlg.findChildren(QPushButton) if w.text() == "Show"]
-        self.assertEqual(show_buttons, [])
+        for btn in show_buttons:
+            self.assertTrue(
+                dlg.credentials_group.isAncestorOf(btn),
+                "Show button found outside credentials group",
+            )
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 """Configuration dialog for editing settings and watched folders."""
 
+import os
+
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -13,7 +15,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QRadioButton,
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
@@ -151,19 +152,6 @@ class ConfigDialog(QDialog):
         tab = QWidget()
         layout = QFormLayout(tab)
 
-        # API Mode
-        api_row = QHBoxLayout()
-        self.radio_production = QRadioButton("Production")
-        self.radio_staging = QRadioButton("Staging")
-        if self.config.live_api:
-            self.radio_production.setChecked(True)
-        else:
-            self.radio_staging.setChecked(True)
-        api_row.addWidget(self.radio_production)
-        api_row.addWidget(self.radio_staging)
-        api_row.addStretch()
-        layout.addRow("API Mode:", api_row)
-
         # Debug mode
         self.debug_check = QCheckBox("Skip uploads (debug)")
         self.debug_check.setChecked(self.config.debug)
@@ -203,25 +191,74 @@ class ConfigDialog(QDialog):
 
         # Separator
         layout.addRow(QLabel(""))
-        layout.addRow(QLabel("API Keys"))
+        layout.addRow(QLabel("Authentication"))
+
+        # Auth Method
+        self.auth_method = QComboBox()
+        self.auth_method.addItems(["API Key", "Username / Password"])
+        if self.config.qualer_auth_mode == "credentials":
+            self.auth_method.setCurrentIndex(1)
+        else:
+            self.auth_method.setCurrentIndex(0)
+        layout.addRow("Auth Method:", self.auth_method)
+
+        # -- API Key group --
+        self.api_key_group = QWidget()
+        api_key_layout = QFormLayout(self.api_key_group)
+        api_key_layout.setContentsMargins(0, 0, 0, 0)
 
         # Qualer API Key — never pre-populated; user types a new value to replace
         self.qualer_key = QLineEdit()
         self.qualer_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.qualer_key.setPlaceholderText(
-            "(saved — type to replace)"
-            if self.config.qualer_api_key
-            else "(not set)"
+            "(saved — type to replace)" if self.config.qualer_api_key else "(not set)"
         )
-        layout.addRow("Qualer API Key:", self.qualer_key)
+        api_key_layout.addRow("Qualer API Key:", self.qualer_key)
+        layout.addRow(self.api_key_group)
 
+        # -- Credentials group --
+        self.credentials_group = QWidget()
+        cred_layout = QFormLayout(self.credentials_group)
+        cred_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.username_edit = QLineEdit(self.config.qualer_username)
+        cred_layout.addRow("Username:", self.username_edit)
+
+        self.password_edit = QLineEdit()
+        self.password_edit.setEchoMode(QLineEdit.EchoMode.Password)
+        self.password_edit.setPlaceholderText(
+            "(saved — type to replace)" if self.config.qualer_password else "(not set)"
+        )
+        pwd_row = QHBoxLayout()
+        pwd_row.addWidget(self.password_edit)
+        show_pwd = QPushButton("Show")
+        show_pwd.setFixedWidth(50)
+        show_pwd.setCheckable(True)
+        show_pwd.toggled.connect(
+            lambda checked: self.password_edit.setEchoMode(
+                QLineEdit.EchoMode.Normal if checked else QLineEdit.EchoMode.Password
+            )
+        )
+        pwd_row.addWidget(show_pwd)
+        cred_layout.addRow("Password:", pwd_row)
+
+        self.test_login_btn = QPushButton("Test Login")
+        self.test_login_btn.clicked.connect(self._test_login)
+        cred_layout.addRow("", self.test_login_btn)
+
+        layout.addRow(self.credentials_group)
+
+        # Toggle visibility based on current auth method
+        self._on_auth_method_changed(self.auth_method.currentIndex())
+        self.auth_method.currentIndexChanged.connect(self._on_auth_method_changed)
+
+        # Gemini API Key (always visible, independent of auth method)
+        layout.addRow(QLabel(""))
         # Gemini API Key — never pre-populated; user types a new value to replace
         self.gemini_key = QLineEdit()
         self.gemini_key.setEchoMode(QLineEdit.EchoMode.Password)
         self.gemini_key.setPlaceholderText(
-            "(saved — type to replace)"
-            if self.config.gemini_api_key
-            else "(not set)"
+            "(saved — type to replace)" if self.config.gemini_api_key else "(not set)"
         )
         layout.addRow("Gemini API Key:", self.gemini_key)
 
@@ -271,6 +308,31 @@ class ConfigDialog(QDialog):
         for i, fw in enumerate(self.folder_widgets):
             fw.setTitle(f"Folder {i + 1}")
 
+    def _on_auth_method_changed(self, index: int):
+        is_credentials = index == 1
+        self.api_key_group.setVisible(not is_credentials)
+        self.credentials_group.setVisible(is_credentials)
+
+    def _test_login(self):
+        from app.auth import AuthenticationError, qualer_login
+
+        username = self.username_edit.text()
+        password = self.password_edit.text()
+        if not username or not password:
+            QMessageBox.warning(self, "Validation", "Enter username and password.")
+            return
+        base_url = (self.config.qualer_endpoint).removesuffix("/api")
+        try:
+            token = qualer_login(username, password, base_url)
+            QMessageBox.information(
+                self,
+                "Success",
+                "Login successful! Token will be saved when you click Save.",
+            )
+            self.qualer_key.setText(token)
+        except AuthenticationError as e:
+            QMessageBox.critical(self, "Login Failed", str(e))
+
     def _browse_tesseract(self):
         path, _ = QFileDialog.getOpenFileName(
             self,
@@ -312,12 +374,26 @@ class ConfigDialog(QDialog):
                 )
                 return
 
+        auth_mode = "credentials" if self.auth_method.currentIndex() == 1 else "api_key"
+
+        # Treat a blank password as "leave unchanged" in credentials mode.
+        # None sentinel → save_env leaves the stored value intact.
+        # Retain the current config value for the in-memory AppConfig object.
+        typed_password = self.password_edit.text()
+        qualer_password_for_config = (
+            (typed_password or self.config.qualer_password)
+            if auth_mode == "credentials"
+            else ""
+        )
+        qualer_password_for_save = (
+            (typed_password or None) if auth_mode == "credentials" else ""
+        )
+
         # Build new config — keep existing key when the field is left blank
         qualer_text = self.qualer_key.text().strip()
         gemini_text = self.gemini_key.text().strip()
         new_config = AppConfig(
             max_runtime=max_runtime,
-            live_api=self.radio_production.isChecked(),
             debug=self.debug_check.isChecked(),
             delete_mode=self.delete_check.isChecked(),
             tesseract_cmd_path=self.tesseract_path.text(),
@@ -325,20 +401,35 @@ class ConfigDialog(QDialog):
             log_file=self.config.log_file,
             po_dict_file=self.config.po_dict_file,
             qualer_endpoint=self.config.qualer_endpoint,
-            qualer_staging_endpoint=self.config.qualer_staging_endpoint,
             watched_folders=folders,
             qualer_api_key=qualer_text or self.config.qualer_api_key,
             gemini_api_key=gemini_text or self.config.gemini_api_key,
+            qualer_auth_mode=auth_mode,
+            qualer_username=(
+                self.username_edit.text() if auth_mode == "credentials" else ""
+            ),
+            qualer_password=qualer_password_for_config,
         )
 
         # Save config.yaml
         save_config(new_config)
 
-        # Persist secrets only when the user explicitly typed a new value
-        if qualer_text or gemini_text:
-            save_env(
-                qualer_text or self.config.qualer_api_key,
-                gemini_text or self.config.gemini_api_key,
-            )
+        # Persist secrets
+        save_env(
+            qualer_api_key=new_config.qualer_api_key,
+            gemini_api_key=new_config.gemini_api_key,
+            qualer_auth_mode=new_config.qualer_auth_mode,
+            qualer_username=new_config.qualer_username,
+            qualer_password=qualer_password_for_save,
+        )
+
+        # Export new API key into the environment so the SDK client picks it up
+        if new_config.qualer_api_key:
+            os.environ["QUALER_API_KEY"] = new_config.qualer_api_key
+
+        # Invalidate cached client so next API call uses new credentials
+        from app.qualer_client import reset_qualer_client
+
+        reset_qualer_client()
 
         self.accept()
