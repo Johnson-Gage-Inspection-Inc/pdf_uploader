@@ -1,27 +1,59 @@
-"""Embedded app icon as base64 PNG for PyInstaller-friendly bundling."""
+"""App icon loader — prefers bundled file, falls back to embedded base64."""
 
 import base64
+import os
+import sys
+
 from PyQt6.QtGui import QIcon, QPixmap
 
-# Simple 32x32 PDF-like icon (red document with "PDF" text)
-_ICON_BASE64 = (
-    "iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAAXNSR0IArs4c6QAAAhRJREFUWEft"
-    "lj1OwzAYhu+BAxRVYmFgYGNi5gacgIkTcAMOwMTEwMLCgISExMDAjjgBN+AEnICRhZWfT3IS"
-    "x/nslCal0kd1nNjv8/7YTkT/+Yn+c/y2A9ba6w7xLCJuIuJBRLyKiAcR8ayq3u0ayYeIeB8R"
-    "t6vqYWvMYIBer3cBEacj4kJEHI+IA+n9R0R8joiPEfE8Ih5X1b2+mG2ARqNxDhGnI+JURByJ"
-    "iL0qfhcR7yPibUTcq6rHXTDbAI1G42xEnImIkxFxJCL2pu+/IuJbRHyOiGcRcaeqnnQBbQM0"
-    "m82TiDgVEcci4nBE7EnfA/AtIr5GxMuIuFNVT7uAtgGazebRiDgREUcj4lBE7E7ff0bE94j4"
-    "EhEvIuJuVT3rAtoGaDabDRGnI+J4RByMiP3p+8+I+BERXyPiZUTcr6rnXUDbAL1e70hEnIyI"
-    "YxFxICL2pe8/IuJ7RHyOiKcRcaeqXnQBbQP0er2DEXEqIo5HxIGI2Ju+/4yIHxHxLSKeR8S9"
-    "qnrZBbQNkE7B0xFxIiIORsT+9P1XRHyPiC8R8TQi7lbVqy6gbQCAZrN5PCJOR8SxiDgQEfvS"
-    "958R8SMivkXEs4i4W1Wvu4C2AQCazWYjIk5FxImIOBQR+9P3XxHJKeJ7RHyJiGcRca+q3nQB"
-    "bQMANJvNgxFxOiJORMShiNiXvv+KiB8R8TUinkfE/ap62wXU/gP8BqJCbyC3qLLFAAAAAElF"
-    "TkSuQmCC"
-)
+
+def _resolve_icon_path() -> str | None:
+    """Return the absolute path to the bundled icon file, or None."""
+    if getattr(sys, "frozen", False):
+        base = getattr(sys, "_MEIPASS", os.path.dirname(sys.executable))
+    else:
+        base = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
+    for name in ("img/app.ico", "img/app_icon_32.png"):
+        path = os.path.join(base, name)
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+# Fallback 32x32 icon encoded as base64 PNG (generated from img/app_icon_32.png)
+_ICON_BASE64 = ""
+
+
+def _load_base64() -> str:
+    """Lazily load the base64 string from the generated text file."""
+    b64_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+        "img",
+        "_icon_b64.txt",
+    )
+    if os.path.isfile(b64_path):
+        with open(b64_path, "r") as f:
+            return f.read().strip()
+    return _ICON_BASE64
 
 
 def get_app_icon() -> QIcon:
     """Return the application icon as a QIcon."""
-    pixmap = QPixmap()
-    pixmap.loadFromData(base64.b64decode(_ICON_BASE64))
-    return QIcon(pixmap)
+    # Try loading from bundled file first (most reliable)
+    path = _resolve_icon_path()
+    if path:
+        icon = QIcon(path)
+        if not icon.isNull():
+            return icon
+
+    # Fallback to embedded base64
+    b64 = _load_base64()
+    if b64:
+        pixmap = QPixmap()
+        pixmap.loadFromData(base64.b64decode(b64))
+        if not pixmap.isNull():
+            return QIcon(pixmap)
+
+    return QIcon()

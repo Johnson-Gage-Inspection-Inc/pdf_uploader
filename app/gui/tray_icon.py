@@ -1,6 +1,6 @@
 """System tray icon with context menu and balloon notifications."""
 
-from PyQt6.QtWidgets import QMenu, QSystemTrayIcon
+from PyQt6.QtWidgets import QApplication, QMenu, QStyle, QSystemTrayIcon
 
 
 class TrayIcon(QSystemTrayIcon):
@@ -12,7 +12,12 @@ class TrayIcon(QSystemTrayIcon):
 
         from app.gui.resources import get_app_icon
 
-        self.setIcon(get_app_icon())
+        icon = get_app_icon()
+        if icon.isNull():
+            icon = QApplication.style().standardIcon(
+                QStyle.StandardPixmap.SP_ComputerIcon
+            )
+        self.setIcon(icon)
         self.setToolTip("PDF Uploader - Starting...")
 
         # Context menu
@@ -30,6 +35,12 @@ class TrayIcon(QSystemTrayIcon):
         # Double-click to show window
         self.activated.connect(self._on_activated)
         self.show()
+        self.showMessage(
+            "PDF Uploader",
+            "Running in system tray. Right-click tray icon to quit.",
+            QSystemTrayIcon.MessageIcon.Information,
+            4000,
+        )
 
     def _on_activated(self, reason):
         if reason == QSystemTrayIcon.ActivationReason.DoubleClick:

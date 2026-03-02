@@ -2,12 +2,14 @@
 
 import os
 from datetime import datetime
+from typing import Any
 
 from PyQt6.QtWidgets import (
     QDialog,
     QLabel,
     QMainWindow,
     QMessageBox,
+    QSystemTrayIcon,
     QTabWidget,
     QApplication,
 )
@@ -53,8 +55,8 @@ class MainWindow(QMainWindow):
         if sbar is not None:
             sbar.addPermanentWidget(self.status_label)
 
-        # System tray
-        self.tray = TrayIcon(self)
+        # System tray (optional; may be unavailable in some environments)
+        self.tray = TrayIcon(self) if QSystemTrayIcon.isSystemTrayAvailable() else None
 
         # Connect signals
         self.event_bus.file_processing_started.connect(self._on_file_started)
@@ -96,10 +98,11 @@ class MainWindow(QMainWindow):
         self._update_status_bar()
 
         # Tray notification
-        if event.validation_result:
-            self.tray.show_validation_notification(event)
-        elif not event.success:
-            self.tray.show_error_notification(event)
+        if self.tray is not None:
+            if event.validation_result:
+                self.tray.show_validation_notification(event)
+            elif not event.success:
+                self.tray.show_error_notification(event)
 
     def _on_watcher_started(self, input_dir):
         self._update_status_bar()
@@ -136,7 +139,8 @@ class MainWindow(QMainWindow):
             f"{files_today} files processed today{queue_info}"
         )
         self.status_label.setText(text)
-        self.tray.update_status(folder_count, files_today)
+        if self.tray is not None:
+            self.tray.update_status(folder_count, files_today)
 
     def open_settings(self):
         dialog = ConfigDialog(self)
@@ -166,10 +170,12 @@ class MainWindow(QMainWindow):
         if inst := QApplication.instance():
             inst.quit()
 
-    def closeEvent(self, event):
+    def closeEvent(self, a0: Any) -> None:
         """Minimize to tray instead of closing."""
-        if self.tray.isVisible():
+        if self.tray is not None and self.tray.isVisible():
             self.hide()
-            event.ignore()
+            a0.ignore()
         else:
-            event.accept()
+            # Fallback: if tray is unavailable/invisible, fully quit.
+            self._quit()
+            a0.accept()
