@@ -372,6 +372,40 @@ def _save_secrets(
     path.write_text(json.dumps(encrypted))
 
 
+def _save_dev_env(
+    qualer_api_key: Optional[str] = None,
+    gemini_api_key: Optional[str] = None,
+    qualer_auth_mode: Optional[str] = None,
+    qualer_username: Optional[str] = None,
+    qualer_password: Optional[str] = None,
+) -> None:
+    """Persist secrets into the project-root ``.env`` file (development only).
+
+    Each parameter uses a ``None`` sentinel to mean "leave unchanged".
+    Pass an empty string to explicitly clear a previously stored value.
+    """
+    from dotenv import set_key, unset_key
+
+    env_path = Path(__file__).parent.parent / ".env"
+
+    _updates = {
+        "QUALER_API_KEY": qualer_api_key,
+        "GEMINI_API_KEY": gemini_api_key,
+        "QUALER_AUTH_MODE": qualer_auth_mode,
+        "QUALER_USERNAME": qualer_username,
+        "QUALER_PASSWORD": qualer_password,
+    }
+    for key, value in _updates.items():
+        if value is None:
+            continue  # not provided — leave unchanged
+        if value:
+            set_key(str(env_path), key, value)
+        else:
+            # empty string — clear from .env (unset_key ignores missing keys)
+            if env_path.exists():
+                unset_key(str(env_path), key)
+
+
 def save_env(
     qualer_api_key: Optional[str] = None,
     gemini_api_key: Optional[str] = None,
@@ -379,18 +413,30 @@ def save_env(
     qualer_username: Optional[str] = None,
     qualer_password: Optional[str] = None,
 ) -> None:
-    """Persist secrets into encrypted ``secrets.enc``.
+    """Persist secrets to the appropriate store for the current run mode.
+
+    * Development: writes to ``.env`` at the project root.
+    * Frozen/bundled: writes to encrypted ``secrets.enc`` next to the .exe.
 
     Pass ``None`` (the default) to leave a value unchanged, or an empty
     string to explicitly clear it from the store.
     """
-    _save_secrets(
-        qualer_api_key=qualer_api_key,
-        gemini_api_key=gemini_api_key,
-        qualer_auth_mode=qualer_auth_mode,
-        qualer_username=qualer_username,
-        qualer_password=qualer_password,
-    )
+    if not getattr(sys, "frozen", False):
+        _save_dev_env(
+            qualer_api_key=qualer_api_key,
+            gemini_api_key=gemini_api_key,
+            qualer_auth_mode=qualer_auth_mode,
+            qualer_username=qualer_username,
+            qualer_password=qualer_password,
+        )
+    else:
+        _save_secrets(
+            qualer_api_key=qualer_api_key,
+            gemini_api_key=gemini_api_key,
+            qualer_auth_mode=qualer_auth_mode,
+            qualer_username=qualer_username,
+            qualer_password=qualer_password,
+        )
 
 
 def update_env_token(new_token: str) -> None:

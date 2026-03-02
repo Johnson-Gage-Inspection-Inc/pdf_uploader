@@ -15,7 +15,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
-    QRadioButton,
     QScrollArea,
     QTabWidget,
     QVBoxLayout,
@@ -152,13 +151,6 @@ class ConfigDialog(QDialog):
     def _build_general_tab(self):
         tab = QWidget()
         layout = QFormLayout(tab)
-
-        # API Mode
-        api_row = QHBoxLayout()
-        self.radio_production = QRadioButton("Production")
-        api_row.addWidget(self.radio_production)
-        api_row.addStretch()
-        layout.addRow("API Mode:", api_row)
 
         # Debug mode
         self.debug_check = QCheckBox("Skip uploads (debug)")

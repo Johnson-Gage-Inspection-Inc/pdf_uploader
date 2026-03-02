@@ -9,7 +9,6 @@ from qualer_sdk.models import (
 )
 
 import app.color_print as cp
-from app.config import QUALER_ENDPOINT
 from app.config_manager import get_config, update_env_token
 
 
@@ -68,9 +67,13 @@ def ensure_authenticated() -> None:
         os.environ["QUALER_API_KEY"] = cfg.qualer_api_key
         return
 
-    # For any non-credentials, non-api_key modes, no authentication work is needed.
+    # For any non-credentials, non-api_key modes, fail fast rather than silently
+    # skipping authentication.
     if cfg.qualer_auth_mode != "credentials":
-        return
+        raise AuthenticationError(
+            f"Unsupported qualer_auth_mode '{cfg.qualer_auth_mode}'. "
+            "Supported modes are 'api_key' and 'credentials'."
+        )
 
     if not cfg.qualer_username or not cfg.qualer_password:
         raise AuthenticationError(
@@ -78,7 +81,7 @@ def ensure_authenticated() -> None:
             "not set in environment/secrets (.env or encrypted secrets store)"
         )
 
-    base_url = QUALER_ENDPOINT.removesuffix("/api")
+    base_url = cfg.qualer_endpoint.removesuffix("/api")
     try:
         new_token = qualer_login(cfg.qualer_username, cfg.qualer_password, base_url)
         os.environ["QUALER_API_KEY"] = new_token
