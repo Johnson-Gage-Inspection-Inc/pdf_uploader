@@ -327,7 +327,7 @@ Install pdf_uploader using one of the following methods:
 
     This user must at least have the API security role in [Employee Settings](https://jgiquality.qualer.com/Company/Employees) on Qualer.
 
-    ![alt text](image.png)
+    ![alt text](img/image.png)
 
     Contact Jeff or Johnny if you need these credentials.
 
