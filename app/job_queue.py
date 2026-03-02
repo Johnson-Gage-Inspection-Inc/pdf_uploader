@@ -181,7 +181,7 @@ class JobQueue:
                     if j.future is not None and not j.future.done()
                 ]
             wait_futures(pending, timeout=timeout)
-        self._pool.shutdown(wait=False)
+        self._pool.shutdown(wait=wait, cancel_futures=True)
         cp.white("Job queue stopped.")
 
 
