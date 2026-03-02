@@ -119,7 +119,19 @@ class JobQueue:
         # Clean up the placeholder if the pool rejects the task (e.g., already shut down).
         try:
             future = self._pool.submit(self._run_job, job)
+        except RuntimeError as exc:
+            # This commonly happens if the underlying ThreadPoolExecutor is
+            # shutting down between our _shutdown check and submit().
+            with self._lock:
+                self._jobs.pop(filepath, None)
+            logger.warning(
+                "JobQueue executor rejected task for %s (likely shutting down): %s",
+                filepath,
+                exc,
+            )
+            return None
         except Exception:
+            # For unexpected errors, still clean up the placeholder and re-raise.
             with self._lock:
                 self._jobs.pop(filepath, None)
             raise

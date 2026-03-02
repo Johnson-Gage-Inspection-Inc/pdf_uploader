@@ -133,18 +133,19 @@ class TestJobQueueConcurrency(unittest.TestCase):
     @patch("upload.process_file")
     def test_parallel_execution(self, mock_process):
         """Multiple jobs should execute concurrently up to max_workers."""
-        started = threading.Event()
         barrier = threading.Barrier(2, timeout=5)
+        done_events = [threading.Event() for _ in range(2)]
 
         call_count = 0
         call_lock = threading.Lock()
 
         def slow_process(filepath, folder):
             nonlocal call_count
-            started.set()
+            idx = int(os.path.basename(filepath).split("_")[1].split(".")[0])
             barrier.wait()  # Both threads must reach here
             with call_lock:
                 call_count += 1
+            done_events[idx].set()
             return True
 
         mock_process.side_effect = slow_process
@@ -161,8 +162,9 @@ class TestJobQueueConcurrency(unittest.TestCase):
         for fp in files:
             q.submit(fp, self.folder)
 
-        # Wait for both to complete (barrier ensures both ran simultaneously)
-        time.sleep(3)
+        # Wait deterministically for both jobs to finish
+        for ev in done_events:
+            self.assertTrue(ev.wait(timeout=10), "Job did not complete in time")
         self.assertEqual(call_count, 2)
 
     @patch("upload.process_file")
@@ -171,15 +173,21 @@ class TestJobQueueConcurrency(unittest.TestCase):
         max_concurrent = 0
         current = 0
         lock = threading.Lock()
+        all_done = threading.Event()
+        completed = 0
+        total_jobs = 5
 
         def track_concurrency(filepath, folder):
-            nonlocal max_concurrent, current
+            nonlocal max_concurrent, current, completed
             with lock:
                 current += 1
                 max_concurrent = max(max_concurrent, current)
             time.sleep(0.2)  # Simulate work
             with lock:
                 current -= 1
+                completed += 1
+                if completed >= total_jobs:
+                    all_done.set()
             return True
 
         mock_process.side_effect = track_concurrency
@@ -187,7 +195,7 @@ class TestJobQueueConcurrency(unittest.TestCase):
         q = init_queue(max_workers=2)
 
         files = []
-        for i in range(5):
+        for i in range(total_jobs):
             fp = os.path.join(self.tmpdir, f"test_{i}.pdf")
             with open(fp, "w") as f:
                 f.write("dummy")
@@ -196,10 +204,10 @@ class TestJobQueueConcurrency(unittest.TestCase):
         for fp in files:
             q.submit(fp, self.folder)
 
-        # Give time for all jobs to complete
-        time.sleep(3)
+        # Wait deterministically for all jobs to complete
+        self.assertTrue(all_done.wait(timeout=30), "Not all jobs completed in time")
         self.assertLessEqual(max_concurrent, 2)
-        self.assertEqual(mock_process.call_count, 5)
+        self.assertEqual(mock_process.call_count, total_jobs)
 
 
 class TestJobQueueErrorHandling(unittest.TestCase):
@@ -226,6 +234,7 @@ class TestJobQueueErrorHandling(unittest.TestCase):
         """A job that raises should not prevent subsequent jobs from running."""
         results = []
         lock = threading.Lock()
+        ok_done = threading.Event()
 
         def alternating(filepath, folder):
             name = os.path.basename(filepath)
@@ -233,6 +242,7 @@ class TestJobQueueErrorHandling(unittest.TestCase):
                 raise RuntimeError("Simulated failure")
             with lock:
                 results.append(name)
+            ok_done.set()
             return True
 
         mock_process.side_effect = alternating
@@ -249,19 +259,15 @@ class TestJobQueueErrorHandling(unittest.TestCase):
         q.submit(fail_fp, self.folder)
         q.submit(ok_fp, self.folder)
 
-        time.sleep(2)
+        self.assertTrue(ok_done.wait(timeout=10), "OK job did not complete")
         self.assertIn("ok.pdf", results)
 
     @patch("upload.process_file")
     def test_failed_job_removed_from_tracking(self, mock_process):
         """After a job fails, the filepath should be removed from _jobs."""
-        done = threading.Event()
 
         def fail_then_signal(filepath, folder):
-            try:
-                raise RuntimeError("boom")
-            finally:
-                done.set()
+            raise RuntimeError("boom")
 
         mock_process.side_effect = fail_then_signal
 
@@ -270,9 +276,10 @@ class TestJobQueueErrorHandling(unittest.TestCase):
         with open(fp, "w") as f:
             f.write("dummy")
 
-        q.submit(fp, self.folder)
-        done.wait(timeout=5)
-        time.sleep(0.5)  # Let the finally block in _run_job complete
+        job = q.submit(fp, self.folder)
+        self.assertIsNotNone(job)
+        # Wait for the future to complete (deterministic — no sleep)
+        job.future.result(timeout=5)  # type: ignore[union-attr]
 
         # The filepath should be cleaned up
         self.assertNotIn(fp, q._jobs)

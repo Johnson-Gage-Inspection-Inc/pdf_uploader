@@ -153,10 +153,16 @@ def _determine_outcome(
     result: ValidationResult,
 ) -> Literal["APPROVED", "REJECTED", "INCONCLUSIVE"]:
     """Map a ValidationResult to an overall outcome for stamping."""
-    if result.status == "pass":
-        return "APPROVED"
     if result.status == "fail":
         return "REJECTED"
+    if result.status == "pass":
+        # Downgrade to INCONCLUSIVE when any annotation could not be verified
+        # or when the validator flagged missing work items.
+        if result.missing_items:
+            return "INCONCLUSIVE"
+        if any(a.status == "unverified" for a in result.annotations):
+            return "INCONCLUSIVE"
+        return "APPROVED"
     # no_pricing, extraction_failed, skipped
     return "INCONCLUSIVE"
 
