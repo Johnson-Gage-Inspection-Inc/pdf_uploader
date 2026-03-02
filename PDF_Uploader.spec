@@ -21,6 +21,8 @@ a = Analysis(
         ('app/version.py', 'app'),
         ('app/po_validator/stamps/*.png', 'app/po_validator/stamps'),
         ('config.yaml', '.'),
+        ('img/app.ico', 'img'),
+        ('img/app_icon_32.png', 'img'),
     ],
     hiddenimports=[
         'httpx', 'httpcore', 'qualer_sdk', 'h11', 'anyio',
@@ -56,4 +58,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon='img/app.ico',
 )
