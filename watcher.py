@@ -273,14 +273,14 @@ def launch_cli():
 
 def launch_gui():
     """Start Qt application with GUI."""
-    from PyQt6.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication, QSystemTrayIcon
     from app.event_bus import init_bus
     from app.job_queue import init_queue, shutdown_queue
     from app.gui.main_window import MainWindow
     from app.color_print import set_gui_handler, set_console_enabled
 
     app = QApplication(sys.argv)
-    app.setQuitOnLastWindowClosed(False)  # Keep running in tray
+    app.setQuitOnLastWindowClosed(not QSystemTrayIcon.isSystemTrayAvailable())
 
     # Initialize event bus
     bus = init_bus()
