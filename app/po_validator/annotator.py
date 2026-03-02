@@ -29,7 +29,7 @@ def _get_stamps_dir() -> Path:
     # When running from a PyInstaller bundle, sys._MEIPASS points to the
     # temporary directory containing bundled data files.
     if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base = Path(sys._MEIPASS)
+        base = Path(sys._MEIPASS)  # pyright: ignore[reportAttributeAccessIssue]
     else:
         base = Path(__file__).parent
     return base / "stamps"

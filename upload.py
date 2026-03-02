@@ -45,6 +45,7 @@ def rename_file(filepath: str, doc_list: list) -> str:
         attempts = 10
         did_rename = False
         new_filepath = filepath
+        new_filename = os.path.basename(filepath)
         # Try to rename the file up to 10 times
         while not did_rename and attempts > 0:
             # Increment the filename
@@ -494,9 +495,9 @@ def _run_po_validation(
                 ) as tmp:
                     tmp.write(annotated_bytes)
                     tmp_path = tmp.name
+                annotated_path: str | None = None
                 try:
                     # Rename temp file to the desired annotated name
-                    annotated_path = None
                     annotated_path = os.path.join(
                         os.path.dirname(tmp_path), annotated_name
                     )
