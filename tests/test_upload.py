@@ -12,7 +12,6 @@ from app.config_manager import WatchedFolder
 
 mock_config = MagicMock()
 mock_config.DEBUG = False
-mock_config.LIVEAPI = True
 mock_config.QUALER_ENDPOINT = "https://api.example.com/api"
 mock_config.LOG_FILE = None
 

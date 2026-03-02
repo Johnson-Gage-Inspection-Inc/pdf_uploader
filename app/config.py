@@ -1,7 +1,8 @@
 """
 config.py -- Backward-compatible facade over config_manager.
 
-All existing imports like ``from app.config import LIVEAPI`` continue to work.
+Exposes commonly-used config values as module-level attributes so that
+existing imports like ``from app.config import DEBUG`` continue to work.
 Values are loaded from config.yaml (or defaults) via config_manager.
 """
 
